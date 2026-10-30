@@ -551,14 +551,22 @@
   async function startTracking() {
     const src = state.source;
     if (!src || state.tracking) return;
-    if (!state.template) {
-      status('Pick the ball first: choose Pick ball, then click the ball.', 'warn');
-      return;
-    }
     // Start from the latest tracked point at or before the current frame.
     const known = [...state.points.keys()].filter((f) => f <= state.frame).sort((p, q) => p - q);
-    if (!known.length) { status('Pick the ball on this frame first.', 'warn'); return; }
+    if (!known.length) { status('Choose Pick ball, then click the ball to start tracking.', 'warn'); return; }
     let f = known[known.length - 1];
+    if (!state.template) {
+      // The points were marked by hand: learn the ball's size and look from the latest one.
+      const p = state.points.get(f);
+      const img = f === state.frame ? state.img : await src.getFrame(f);
+      const blob = tracker.estimateBlob(img, p.x, p.y, Math.min(150, img.width / 4));
+      if (blob.r >= 2 && blob.r <= 150 && Math.hypot(blob.x - p.x, blob.y - p.y) < blob.r) {
+        state.ballR = Math.round(blob.r);
+        $('ballR').value = state.ballR;
+      }
+      state.template = tracker.makeTemplate(img, p.x, p.y, state.ballR + 2);
+      state.color = tracker.meanColor(img, p.x, p.y, Math.max(1, Math.round(state.ballR * 0.6)));
+    }
     const hist = known.slice(-3).map((k) => ({ frame: k, ...state.points.get(k) }));
 
     state.tracking = true;
@@ -751,7 +759,12 @@
   });
 
   $('frameSlider').addEventListener('input', (e) => { if (!state.tracking) showFrame(+e.target.value); });
-  const step = (d) => { if (!state.tracking && state.source) showFrame(state.frame + d); };
+  // Step from the frame most recently asked for, so quick key presses add up while a frame loads.
+  const step = (d) => {
+    if (state.tracking || !state.source) return;
+    const base = wantedFrame !== null ? wantedFrame : loadingFrame !== null ? loadingFrame : state.frame;
+    showFrame(base + d);
+  };
   $('btnPrev').addEventListener('click', () => step(-state.step));
   $('btnNext').addEventListener('click', () => step(state.step));
   $('btnFirst').addEventListener('click', () => step(-1e9));

@@ -80,7 +80,19 @@ Its slope is −g.
 | `js/charts.js` | Canvas graphs |
 | `tests/run-tests.js` | Node tests: fitting, and tracking the demo clip end to end |
 
-Run the tests with `node tests/run-tests.js`.
+Run the unit tests with `node tests/run-tests.js`.
+
+The browser test opens real video files through the page and sets points the way a student
+would: the file picker, drag and drop, dragging the scale and origin, clicking the ball, marking
+by hand, moving and deleting points, and the frame keys. It needs Python with numpy, ffmpeg and
+Playwright:
+
+    python3 tests/browser/make_clips.py /tmp/clips   # test clips with known motion
+    node tests/browser/e2e.js /tmp/clips
+
+The clips cover H.264 MP4, MOV with audio, VP9 WebM, 4K, a portrait phone clip with rotation
+metadata, and a 240 fps slow-motion clip saved at 30 fps. Each run checks the tracked positions
+against the true ball and g against 9.81 m/s².
 
 ## Limits
 
@@ -88,3 +100,6 @@ Run the tests with `node tests/run-tests.js`.
 - The scale is the same over the whole frame. Lens distortion near the edges of wide-angle
   phone cameras and parallax both add error. Keep the drop near the middle of the frame.
 - Very large videos are scaled down to 1920 px wide before tracking.
+- The browser must be able to play the video. iPhones record HEVC by default, which Safari plays
+  but some other browsers don't. If a clip won't open, set the iPhone camera to *Most Compatible*
+  (Settings → Camera → Formats), or convert the clip to MP4 (H.264).

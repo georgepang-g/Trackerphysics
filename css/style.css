@@ -124,7 +124,8 @@ button, input, select { font: inherit; color: inherit; }
   position: relative; background: var(--stage-bg); border-radius: var(--radius); overflow: hidden;
   display: flex; justify-content: center; align-items: center;
 }
-.stage canvas { display: block; max-width: 100%; height: auto; touch-action: none; }
+/* Fit the whole frame on screen, portrait clips included, so every point can be reached. */
+.stage canvas { display: block; max-width: 100%; max-height: 78vh; width: auto; height: auto; touch-action: none; }
 .stage.tool-ball canvas, .stage.tool-manual canvas { cursor: crosshair; }
 .stage.dragging canvas { cursor: grabbing; }
 .stage-badge {
