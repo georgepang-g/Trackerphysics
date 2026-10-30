@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TrackerPhysics</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Video analysis for a free-fall lab: track a ball automatically and measure g.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="6" cy="5" r="2.2"/><circle cx="12" cy="7" r="2.2"/><circle cx="17" cy="11" r="2.2"/>
+      <circle cx="21" cy="17" r="2.2"/><circle cx="25" cy="25" r="2.2"/>
+    </svg>
+    <div>
+      <h1>TrackerPhysics</h1>
+      <p class="tagline">Free-fall video lab</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <label class="btn btn-primary" for="fileInput">Open video…</label>
+    <input type="file" id="fileInput" accept="video/*" hidden>
+    <button class="btn" id="btnDemo" type="button">Load demo clip</button>
+  </div>
+</header>
+
+<main class="workspace">
+  <section class="stage-col" aria-label="Video">
+    <div class="toolbar" role="toolbar" aria-label="Tools">
+      <div class="seg" role="radiogroup" aria-label="Pointer tool">
+        <button type="button" class="seg-btn" data-tool="move" aria-pressed="true" title="Drag the scale stick, origin or track points">Move</button>
+        <button type="button" class="seg-btn" data-tool="ball" aria-pressed="false" title="Click the ball to start automatic tracking">Pick ball</button>
+        <button type="button" class="seg-btn" data-tool="manual" aria-pressed="false" title="Click the ball yourself on each frame">Mark by hand</button>
+      </div>
+      <div class="tool-group">
+        <button type="button" class="btn" id="btnAutoFind" title="Find the moving ball in this frame and start tracking">Auto-find ball</button>
+        <button type="button" class="btn btn-primary" id="btnTrack">Track</button>
+        <button type="button" class="btn" id="btnStop" disabled>Stop</button>
+      </div>
+      <div class="tool-group tool-end">
+        <button type="button" class="btn btn-quiet" id="btnDeletePoint" title="Delete the point on this frame">Delete point</button>
+        <button type="button" class="btn btn-quiet" id="btnClear">Clear track</button>
+      </div>
+    </div>
+
+    <div class="stage" id="stageWrap">
+      <canvas id="stage" width="960" height="540" aria-label="Video frame with tracking overlay"></canvas>
+      <div class="stage-badge" id="sourceBadge"></div>
+      <div class="drop-hint" id="dropHint" hidden>Drop the video to open it</div>
+    </div>
+
+    <div class="framebar">
+      <div class="frame-steps">
+        <button type="button" class="icon-btn" id="btnFirst" aria-label="First frame">|◀</button>
+        <button type="button" class="icon-btn" id="btnPrev" aria-label="Previous frame">◀</button>
+        <button type="button" class="icon-btn" id="btnNext" aria-label="Next frame">▶</button>
+        <button type="button" class="icon-btn" id="btnLast" aria-label="Last frame">▶|</button>
+      </div>
+      <div class="scrub">
+        <input type="range" id="frameSlider" min="0" max="59" value="0" step="1" aria-label="Frame">
+        <div class="range-track" id="rangeTrack" aria-hidden="true"><span id="rangeFill"></span></div>
+      </div>
+      <div class="frame-read mono" id="frameRead">frame 0 · t = 0.000 s</div>
+      <div class="frame-range">
+        <button type="button" class="btn btn-small" id="btnSetStart" title="Use this frame as the first frame to track and fit">Set start</button>
+        <button type="button" class="btn btn-small" id="btnSetEnd" title="Use this frame as the last frame to track and fit">Set end</button>
+        <span class="mono range-read" id="rangeRead">0–59</span>
+      </div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <aside class="panel" aria-label="Setup and result">
+    <section class="result" id="result">
+      <div class="eyebrow">Measured acceleration of gravity</div>
+      <div class="g-line">
+        <span class="g-sym">g</span><span class="g-eq">=</span>
+        <span class="g-val mono" id="gVal">—</span>
+        <span class="g-err mono" id="gErr"></span>
+        <span class="g-unit">m/s²</span>
+      </div>
+      <div class="compare" id="gCompare"><span class="pill" id="gPill">no data</span><span id="gCompareText">Track the ball to measure g.</span></div>
+      <dl class="stats">
+        <div><dt>From v<sub>y</sub>(t) slope</dt><dd class="mono" id="statGV">—</dd></div>
+        <div><dt>Fit R²</dt><dd class="mono" id="statR2">—</dd></div>
+        <div><dt>Points used</dt><dd class="mono" id="statN">—</dd></div>
+        <div><dt>Height dropped</dt><dd class="mono" id="statDrop">—</dd></div>
+        <div><dt>Time span</dt><dd class="mono" id="statDur">—</dd></div>
+        <div><dt>Start height y₀</dt><dd class="mono" id="statY0">—</dd></div>
+      </dl>
+      <p class="fit-eq mono" id="fitEq"></p>
+    </section>
+
+    <section class="step">
+      <h2><span class="step-n">1</span>Timing</h2>
+      <div class="field-row">
+        <label for="fileFps">Frame rate of the file</label>
+        <div class="input-unit"><input type="number" id="fileFps" min="1" max="2000" step="any" value="120"><span>fps</span></div>
+        <button type="button" class="btn btn-small" id="btnDetectFps">Detect</button>
+      </div>
+      <div class="field-row">
+        <label for="captureFps">Real capture rate</label>
+        <div class="input-unit"><input type="number" id="captureFps" min="1" max="20000" step="any" value="120"><span>fps</span></div>
+      </div>
+      <p class="help">For slow-motion clips, set the rate the camera recorded at (for example 240), not the playback rate.</p>
+      <div class="field-row">
+        <label for="frameStep">Track every</label>
+        <div class="input-unit"><input type="number" id="frameStep" min="1" max="50" step="1" value="1"><span>frame(s)</span></div>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2><span class="step-n">2</span>Scale</h2>
+      <p class="help">Drag the ends of the <b class="key-scale">blue stick</b> onto something of known length in the video, such as a metre stick.</p>
+      <div class="field-row">
+        <label for="calLength">Real length of stick</label>
+        <div class="input-unit"><input type="number" id="calLength" min="0.001" step="any" value="1.000"><span>m</span></div>
+      </div>
+      <p class="help mono" id="scaleRead">—</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="step-n">3</span>Origin</h2>
+      <p class="help">Drag the <b class="key-axes">axes</b> to the floor so y is the ball's height above it. y points up.</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="step-n">4</span>Tracking</h2>
+      <div class="field-row">
+        <label for="method">Method</label>
+        <select id="method">
+          <option value="template">Template match (shape + colour)</option>
+          <option value="color">Colour blob (good for blurry balls)</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label for="ballR">Ball radius</label>
+        <div class="input-unit"><input type="number" id="ballR" min="2" max="200" step="1" value="12"><span>px</span></div>
+      </div>
+      <div class="field-row">
+        <label for="tolerance">Match tolerance</label>
+        <input type="range" id="tolerance" min="10" max="90" step="1" value="40" aria-describedby="tolRead">
+        <span class="mono tol-read" id="tolRead">40</span>
+      </div>
+      <div class="field-row">
+        <label for="evolve">Template update</label>
+        <input type="range" id="evolve" min="0" max="60" step="5" value="20" aria-describedby="evolveRead">
+        <span class="mono tol-read" id="evolveRead">20%</span>
+      </div>
+      <p class="help">Pick ball: click the ball once and tracking runs to the end frame. If the ball is lost, click it again on that frame to carry on.</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="step-n">5</span>Compare</h2>
+      <div class="field-row">
+        <label for="gRef">Accepted value of g</label>
+        <div class="input-unit"><input type="number" id="gRef" min="0" step="any" value="9.81"><span>m/s²</span></div>
+      </div>
+    </section>
+  </aside>
+
+  <section class="analysis" aria-label="Graphs and data">
+    <div class="card chart-card">
+      <div class="card-head">
+        <div class="tabs" role="tablist" aria-label="Graph">
+          <button type="button" role="tab" class="tab" data-chart="y" aria-selected="true">Height y(t)</button>
+          <button type="button" role="tab" class="tab" data-chart="vy" aria-selected="false">Velocity v<sub>y</sub>(t)</button>
+          <button type="button" role="tab" class="tab" data-chart="x" aria-selected="false">Horizontal x(t)</button>
+        </div>
+        <div class="legend" id="chartLegend"></div>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart" aria-label="Graph of tracked data"></canvas>
+        <div class="tooltip mono" id="chartTip" hidden></div>
+      </div>
+    </div>
+    <div class="card table-card">
+      <div class="card-head">
+        <h2 class="card-title">Data</h2>
+        <div class="tool-group">
+          <button type="button" class="btn btn-small" id="btnCopy">Copy CSV</button>
+          <button type="button" class="btn btn-small" id="btnDownload">Download CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data mono" id="dataTable">
+          <thead><tr><th>frame</th><th>t (s)</th><th>x (m)</th><th>y (m)</th><th>v<sub>y</sub> (m/s)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="js/physics.js"></script>
+<script src="js/tracker.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
