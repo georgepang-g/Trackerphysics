@@ -35,8 +35,12 @@ already been tracked, so you can see the whole workflow before you film anything
    Tracking runs to the end frame. *Auto-find ball* finds the moving ball for you instead.
    - If the ball is lost (it hits the floor, leaves the frame, or is hidden), tracking stops and says
      where. Click the ball again on that frame to carry on.
-   - Use *Set start* / *Set end* to keep only the free-fall part in the fit. Points outside the range are
-     drawn hollow and are left out of the fit.
+   - Choose which frames to use under *Track and fit*: type a *Start frame* and *End frame*, or press
+     *Use this frame* to take the frame on screen. Tracking stops at the end frame, and the fit uses only
+     these frames, so you can leave out the moments before release and after the bounce. Points outside
+     the range are greyed out and left out of the fit.
+   - To go to a frame, type its number in the *Frame* box, drag the slider, or use the step buttons
+     and the ← → keys (Shift steps 10 frames).
    - Drag a point with *Move* to correct it, or use *Mark by hand* to click the ball yourself frame by frame.
 6. **Read the result.** The panel shows g with its standard error from the least-squares fit, the percent
    difference from the accepted value, and a cross-check of g from the slope of v<sub>y</sub>(t).

@@ -298,8 +298,16 @@
   function updateFrameUI() {
     const n = state.source ? state.source.frameCount : 1;
     $('frameSlider').value = state.frame;
-    $('frameRead').textContent = `frame ${state.frame} / ${n - 1} · t = ${frameTime(state.frame).toFixed(3)} s`;
-    $('rangeRead').textContent = `fit frames ${state.range.start}–${state.range.end}`;
+    $('frameRead').textContent = `of ${n - 1} · t = ${frameTime(state.frame).toFixed(3)} s`;
+    // Don't overwrite a number while someone is typing it.
+    const put = (id, v) => {
+      const el = $(id);
+      el.max = n - 1;
+      if (document.activeElement !== el) el.value = v;
+    };
+    put('frameInput', state.frame);
+    put('startInput', state.range.start);
+    put('endInput', state.range.end);
     const span = Math.max(1, n - 1);
     const fill = $('rangeFill');
     fill.style.left = (state.range.start / span) * 100 + '%';
@@ -623,7 +631,7 @@
 
   function setTrackingUI(on) {
     $('btnStop').disabled = !on;
-    for (const id of ['btnTrack', 'btnAutoFind', 'btnDemo', 'btnClear', 'btnDeletePoint', 'btnDetectFps']) $(id).disabled = on;
+    for (const id of ['btnTrack', 'btnAutoFind', 'btnDemo', 'btnClear', 'btnDeletePoint', 'btnDetectFps', 'frameInput']) $(id).disabled = on;
   }
 
   // ---------- analysis ----------
@@ -769,15 +777,36 @@
   $('btnNext').addEventListener('click', () => step(state.step));
   $('btnFirst').addEventListener('click', () => step(-1e9));
   $('btnLast').addEventListener('click', () => step(1e9));
-  $('btnSetStart').addEventListener('click', () => {
-    state.range.start = state.frame;
-    if (state.range.end < state.frame) state.range.end = state.source.frameCount - 1;
+  // Set the first or last frame to track and fit. If the two cross, the other end opens up fully.
+  function setRange(which, value) {
+    if (!state.source || !isFinite(value)) { updateFrameUI(); return; }
+    const last = state.source.frameCount - 1;
+    const f = Math.max(0, Math.min(last, Math.round(value)));
+    if (which === 'start') {
+      state.range.start = f;
+      if (state.range.end < f) state.range.end = last;
+    } else {
+      state.range.end = f;
+      if (state.range.start > f) state.range.start = 0;
+    }
     updateAnalysis(); render();
+    // Show the numbers actually used, even in the box that still has the cursor.
+    $('startInput').value = state.range.start;
+    $('endInput').value = state.range.end;
+    status(`Tracking and the fit use frames ${state.range.start} to ${state.range.end}.`);
+  }
+  $('btnSetStart').addEventListener('click', () => setRange('start', state.frame));
+  $('btnSetEnd').addEventListener('click', () => setRange('end', state.frame));
+  $('startInput').addEventListener('change', (e) => setRange('start', parseInt(e.target.value, 10)));
+  $('endInput').addEventListener('change', (e) => setRange('end', parseInt(e.target.value, 10)));
+  $('frameInput').addEventListener('input', (e) => {
+    const v = parseInt(e.target.value, 10);
+    if (isFinite(v) && !state.tracking) showFrame(v);
   });
-  $('btnSetEnd').addEventListener('click', () => {
-    state.range.end = state.frame;
-    if (state.range.start > state.frame) state.range.start = 0;
-    updateAnalysis(); render();
+  $('frameInput').addEventListener('change', (e) => {
+    const v = parseInt(e.target.value, 10);
+    const last = state.source ? state.source.frameCount - 1 : 0;
+    e.target.value = isFinite(v) ? Math.max(0, Math.min(last, v)) : state.frame;
   });
 
   document.addEventListener('keydown', (e) => {

@@ -70,7 +70,7 @@ function serve() {
   }
   async function gotoFrame(n) {
     await page.evaluate((n) => { const s = document.getElementById('frameSlider'); s.value = n; s.dispatchEvent(new Event('input')); }, n);
-    await page.waitForFunction((n) => document.getElementById('frameRead').textContent.startsWith(`frame ${n} /`), n);
+    await page.waitForFunction((n) => document.getElementById('frameInput').value === String(n), n);
   }
   async function openWithPicker(file) {
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('label[for="fileInput"]')]);
@@ -181,11 +181,11 @@ function serve() {
     await page.click('[data-tool="manual"]');
     for (let i = 0; i < 5; i++) {
       const f = c.release + 1 + i;
-      await page.waitForFunction((f) => document.getElementById('frameRead').textContent.startsWith(`frame ${f} /`), f);
+      await page.waitForFunction((f) => document.getElementById('frameInput').value === String(f), f);
       const [x, y] = c.truth[f];
       await page.mouse.click(...(await screen(x * k, y * k)));
     }
-    await page.waitForFunction((f) => document.getElementById('frameRead').textContent.startsWith(`frame ${f} /`), c.release + 6);
+    await page.waitForFunction((f) => document.getElementById('frameInput').value === String(f), c.release + 6);
     rows = await page.locator('#dataTable tbody tr[data-frame]').count();
     check('Mark by hand: five clicks give five points and step the video', rows === 5, `${rows} rows, now on frame ${c.release + 6}`);
     const tableY = await page.$$eval('#dataTable tbody tr[data-frame]', (trs) => trs.map((tr) => [+tr.dataset.frame, +tr.cells[3].textContent]));
@@ -218,7 +218,7 @@ function serve() {
 
     // Keyboard and buttons step frames.
     const settle = async (n) => {
-      await page.waitForFunction((n) => document.getElementById('frameRead').textContent.startsWith(`frame ${n} /`), n, { timeout: 5000 }).catch(() => {});
+      await page.waitForFunction((n) => document.getElementById('frameInput').value === String(n), n, { timeout: 5000 }).catch(() => {});
       return (await readState()).frame;
     };
     await page.locator('h1').click();
@@ -249,6 +249,60 @@ function serve() {
     await waitStatus(/Tracked/);
     rows = await page.locator('#dataTable tbody tr[data-frame]').count();
     check('Stop, then Track carries on to the end frame', rows === expectRows, `${stoppedMsg.slice(0, 30)} → ${rows} rows`);
+  }
+
+  // --- Typing frame numbers ---
+  {
+    const c = truth.mp4;
+    const last = c.frames - 1;
+    await page.fill('#frameInput', '500');
+    await page.press('#frameInput', 'Enter');
+    await page.waitForFunction((f) => TP.app.state.frame === f, last, { timeout: 5000 }).catch(() => {});
+    check('A frame number past the clip goes to the last frame', (await readState()).frame === last && (await page.inputValue('#frameInput')) === String(last),
+      `frame ${(await readState()).frame}, box shows ${await page.inputValue('#frameInput')}`);
+    await page.fill('#frameInput', '30');
+    await page.waitForFunction(() => TP.app.state.frame === 30, null, { timeout: 5000 }).catch(() => {});
+    let st = await readState();
+    check('Typing a frame number jumps to that frame', st.frame === 30, `frame ${st.frame}`);
+    check('Slider follows the typed frame', (await page.inputValue('#frameSlider')) === '30');
+
+    await page.fill('#startInput', '20');
+    await page.press('#startInput', 'Enter');
+    await page.fill('#endInput', '40');
+    await page.press('#endInput', 'Tab');
+    const range = await page.evaluate(() => TP.app.state.range);
+    const n = +(await page.locator('#statN').textContent());
+    check('Typed start and end frames set the fit range', range.start === 20 && range.end === 40, `${range.start}–${range.end}`);
+    check('The fit uses only the typed frames', n === 21, `${n} points`);
+    const hollow = await page.locator('#dataTable tbody tr.is-out').count();
+    const total = await page.locator('#dataTable tbody tr[data-frame]').count();
+    check('Points outside the typed range are greyed out in the table', hollow === total - 21, `${hollow} of ${total}`);
+
+    await page.fill('#endInput', '999');
+    await page.press('#endInput', 'Enter');
+    let r = await page.evaluate(() => TP.app.state.range);
+    check('An end frame past the clip is clamped to the last frame', r.end === last && (await page.inputValue('#endInput')) === String(last), `end ${r.end}`);
+    await page.fill('#endInput', '10');
+    await page.press('#endInput', 'Enter');
+    r = await page.evaluate(() => TP.app.state.range);
+    check('An end before the start moves the start back to 0', r.start === 0 && r.end === 10, `${r.start}–${r.end}`);
+
+    // Track only within a typed range: tracking stops at the typed end frame.
+    await page.click('#btnClear');
+    await page.fill('#startInput', String(c.release + 1));
+    await page.press('#startInput', 'Enter');
+    await page.fill('#endInput', String(c.release + 11));
+    await page.press('#endInput', 'Enter');
+    await page.fill('#frameInput', String(c.release + 1));
+    await page.waitForFunction((f) => TP.app.state.frame === f, c.release + 1, { timeout: 5000 });
+    await page.click('[data-tool="ball"]');
+    const k = (await readState()).canvasW / c.width;
+    await page.mouse.click(...(await screen(c.truth[c.release + 1][0] * k, c.truth[c.release + 1][1] * k)));
+    await waitStatus(/Tracked|Lost|Stopped/);
+    st = await readState();
+    const frames = st.points.map((p) => p[0]);
+    check('Tracking stops at the typed end frame', Math.max(...frames) === c.release + 11 && frames.length === 11,
+      `frames ${Math.min(...frames)}–${Math.max(...frames)}, ${frames.length} points`);
   }
 
   // --- Drag and drop a video onto the page ---

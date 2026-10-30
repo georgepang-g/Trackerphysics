@@ -66,11 +66,23 @@
         <input type="range" id="frameSlider" min="0" max="59" value="0" step="1" aria-label="Frame">
         <div class="range-track" id="rangeTrack" aria-hidden="true"><span id="rangeFill"></span></div>
       </div>
-      <div class="frame-read mono" id="frameRead">frame 0 · t = 0.000 s</div>
-      <div class="frame-range">
-        <button type="button" class="btn btn-small" id="btnSetStart" title="Use this frame as the first frame to track and fit">Set start</button>
-        <button type="button" class="btn btn-small" id="btnSetEnd" title="Use this frame as the last frame to track and fit">Set end</button>
-        <span class="mono range-read" id="rangeRead">0–59</span>
+      <div class="frame-read">
+        <label for="frameInput">Frame</label>
+        <input type="number" id="frameInput" class="num-input mono" min="0" max="59" step="1" value="0">
+        <span class="mono" id="frameRead">of 59 · t = 0.000 s</span>
+      </div>
+      <div class="frame-range" role="group" aria-label="Frames to track and fit">
+        <span class="range-title">Track and fit</span>
+        <div class="range-field">
+          <label for="startInput">Start frame</label>
+          <input type="number" id="startInput" class="num-input mono" min="0" max="59" step="1" value="0">
+          <button type="button" class="btn btn-small" id="btnSetStart" title="Make the frame on screen the first frame to track and fit">Use this frame</button>
+        </div>
+        <div class="range-field">
+          <label for="endInput">End frame</label>
+          <input type="number" id="endInput" class="num-input mono" min="0" max="59" step="1" value="59">
+          <button type="button" class="btn btn-small" id="btnSetEnd" title="Make the frame on screen the last frame to track and fit">Use this frame</button>
+        </div>
       </div>
     </div>
     <p class="status" id="status" role="status" aria-live="polite"></p>

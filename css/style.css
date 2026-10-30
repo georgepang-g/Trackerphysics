@@ -150,9 +150,18 @@ button, input, select { font: inherit; color: inherit; }
 .scrub input { width: 100%; position: relative; z-index: 1; margin: 0; }
 .range-track { position: absolute; left: 8px; right: 8px; top: 50%; height: 4px; margin-top: 6px; pointer-events: none; }
 .range-track span { position: absolute; top: 0; bottom: 0; background: var(--ov-track); border-radius: 2px; opacity: 0.7; }
-.frame-read { grid-area: read; color: var(--muted); font-size: 13px; white-space: nowrap; }
-.frame-range { grid-area: range; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.range-read { color: var(--muted); font-size: 13px; }
+.frame-read { grid-area: read; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.frame-read label { color: var(--ink); font-weight: 500; }
+.frame-range { grid-area: range; display: flex; gap: 8px 16px; align-items: center; flex-wrap: wrap; }
+.range-title { font: 600 12px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.range-field { display: flex; align-items: center; gap: 6px; }
+.range-field label { font-size: 13px; }
+.num-input {
+  width: 5.2em; min-height: 30px; padding: 2px 6px; text-align: right;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+}
+.num-input:focus { border-color: var(--accent); outline: none; }
+.num-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .status { margin: 0; min-height: 1.5em; color: var(--muted); }
 .status.is-warn { color: var(--warn); }
 .status.is-good { color: var(--good); }
@@ -239,6 +248,7 @@ table.data td.empty { text-align: center; color: var(--muted); padding: 24px; fo
 @media (max-width: 760px) {
   .analysis { grid-template-columns: minmax(0, 1fr); }
   .tool-end { margin-left: 0; }
+  .range-title { flex-basis: 100%; }
   .framebar { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "steps scrub" "read read" "range range"; }
   .g-val { font-size: 32px; }
 }
