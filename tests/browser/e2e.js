@@ -77,6 +77,11 @@ function serve() {
     await chooser.setFiles(path.join(CLIPS, file));
     await waitStatus(/Opened|Could not|not a video/);
   }
+  // Delete point and Clear live in the More menu.
+  async function menu(id) {
+    if (!(await page.locator('#moreMenu').evaluate((d) => d.open))) await page.click('#moreMenu > summary');
+    await page.click(id);
+  }
   async function readG() {
     return page.evaluate(() => ({ g: parseFloat(gVal.textContent), err: gErr.textContent, n: +statN.textContent, r2: statR2.textContent }));
   }
@@ -173,7 +178,7 @@ function serve() {
     const st = await readState();
     const k = st.canvasW / c.width;
     await setupAndTrack(c, k);              // sets scale/origin/range; clears below
-    await page.click('#btnClear');
+    await menu('#btnClear');
     let rows = await page.locator('#dataTable tbody tr[data-frame]').count();
     check('Clear track empties the table', rows === 0, `${rows} rows`);
 
@@ -212,7 +217,7 @@ function serve() {
     const xCell = await page.locator(`#dataTable tr[data-frame="${f}"] td`).nth(2).textContent();
     check('Move: the table updates', Math.abs(+xCell - (after[1] - st2.origin.x) / ppm) < 1e-3, `x = ${xCell} m`);
 
-    await page.click('#btnDeletePoint');
+    await menu('#btnDeletePoint');
     const gone = await page.locator(`#dataTable tr[data-frame="${f}"]`).count();
     check('Delete point removes it', gone === 0);
 
@@ -237,7 +242,7 @@ function serve() {
     check('Quick repeated arrow presses all count', fr === f - 3, `frame ${fr}`);
 
     // Stop part-way, then Track carries on.
-    await page.click('#btnClear');
+    await menu('#btnClear');
     await gotoFrame(c.release + 1);
     await page.click('[data-tool="ball"]');
     const [bx, by] = c.truth[c.release + 1];
@@ -288,7 +293,7 @@ function serve() {
     check('An end before the start moves the start back to 0', r.start === 0 && r.end === 10, `${r.start}–${r.end}`);
 
     // Track only within a typed range: tracking stops at the typed end frame.
-    await page.click('#btnClear');
+    await menu('#btnClear');
     await page.fill('#startInput', String(c.release + 1));
     await page.press('#startInput', 'Enter');
     await page.fill('#endInput', String(c.release + 11));
@@ -320,6 +325,7 @@ function serve() {
     await page.mouse.click(...(await screen(c.truth[held][0] * k, c.truth[held][1] * k)));
     await waitStatus(/Tracked|Lost|Stopped/);
 
+    await page.click('#dropDetails > summary');
     await page.fill('#dropH', h.toFixed(3));
     await page.fill('#dropRelease', String(held));
     await page.press('#dropRelease', 'Enter');

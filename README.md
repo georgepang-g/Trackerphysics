@@ -27,7 +27,7 @@ already been tracked, so you can see the whole workflow before you film anything
    - Use the highest frame rate your phone offers (slow-motion 120 or 240 fps is ideal), bright light,
      and a ball that contrasts with the background.
 2. **Open the video** with *Open video…* or drag it onto the page. The frame rate is detected
-   automatically. For slow-motion clips, set *Real capture rate* to the rate the camera recorded at
+   automatically. For slow-motion clips, set *Filmed at* to the rate the camera recorded at
    (for example 240). Time is computed from this rate.
 3. **Scale:** drag the ends of the blue stick onto the ends of the metre stick and type its real length.
 4. **Origin:** drag the axes to the floor. Then y is the ball's height above the floor, with y pointing up.
@@ -35,24 +35,25 @@ already been tracked, so you can see the whole workflow before you film anything
    Tracking runs to the end frame. *Auto-find ball* finds the moving ball for you instead.
    - If the ball is lost (it hits the floor, leaves the frame, or is hidden), tracking stops and says
      where. Click the ball again on that frame to carry on.
-   - Choose which frames to use under *Track and fit*: type a *Start frame* and *End frame*, or press
-     *Use this frame* to take the frame on screen. Tracking stops at the end frame, and the fit uses only
+   - Choose which frames to use with *Fit frames*: type the first and last frame numbers, or press
+     *Set start* / *Set end* to use the frame on screen. Tracking stops at the end frame, and the fit uses only
      these frames, so you can leave out the moments before release and after the bounce. Points outside
      the range are greyed out and left out of the fit.
    - To go to a frame, type its number in the *Frame* box, drag the slider, or use the step buttons
      and the ← → keys (Shift steps 10 frames).
-   - Drag a point with *Move* to correct it, or use *Mark by hand* to click the ball yourself frame by frame.
+   - Drag a point with *Move* to correct it, or use *Mark* to click the ball yourself frame by frame.
+     *Delete point* and *Clear all points* are under *More* (the Delete key also removes the point on screen).
 6. **Read the result.** The panel shows g with its standard error from the least-squares fit, the percent
    difference from the accepted value, and a cross-check of g from the slope of v<sub>y</sub>(t).
-   *Copy CSV* / *Download CSV* export the data table for a spreadsheet.
+   *Copy* / *Download CSV* export the data table for a spreadsheet.
 
 ### Drop height and time (second method)
 
-Panel step 6 measures g without tracking, the classic way. Measure the drop distance **h** with a
+*Drop height method*, at the bottom of the side panel, measures g without tracking, the classic way. Measure the drop distance **h** with a
 tape measure, from the bottom of the ball to the floor, and type it in with its uncertainty. Then
 set the **release frame** (the last frame before the ball starts to fall) and the **landing frame**
 (the first frame where it touches the floor). Type the frame numbers, or step to the frame and press
-*Use this frame*. The app computes
+*This frame*. The app computes
 
     t = (landing frame − release frame) / capture rate,   g = 2h / t²
 
@@ -79,12 +80,12 @@ Its slope is −g.
 
 ### How the tracking works
 
-- **Template match** (default): after you click the ball, the app finds its edge to measure its radius,
+- **Shape and colour** (default): after you click the ball, the app finds its edge to measure its radius,
   then saves the pixels around it as a template. On each next frame it predicts where the ball will be
   from its velocity and acceleration so far, searches a window around that point for the best colour
   match, and refines the match to sub-pixel accuracy. The template adapts slowly (*Template update*)
   so it can follow changes in lighting.
-- **Colour blob**: finds all pixels close to the ball's colour near the predicted position and takes their
+- **Colour only**: finds all pixels close to the ball's colour near the predicted position and takes their
   centre. It copes better with motion blur. The colour comparison ignores shading, so the lit and shadowed
   sides of the ball both count.
 - **Auto-find**: compares the current frame with frames just before and after it. Whatever differs from

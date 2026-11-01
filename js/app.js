@@ -78,7 +78,7 @@
     const base = x.getImageData(0, 0, D.width, D.height);
     return {
       kind: 'demo',
-      label: 'DEMO · synthetic 120 fps clip',
+      label: 'Demo clip · 120 fps',
       width: D.width,
       height: D.height,
       duration: D.frames / D.fps,
@@ -90,7 +90,7 @@
       setFps() {},
       preset: {
         calib: { a: { x: D.stick.x - 34, y: D.floorY }, b: { x: D.stick.x - 34, y: D.floorY - D.pxPerMetre }, length: 1 },
-        origin: { x: D.stick.x, y: D.floorY },
+        origin: { x: Math.round(demo.ballAt(0).x), y: D.floorY },
       },
     };
   }
@@ -302,7 +302,9 @@
   function updateFrameUI() {
     const n = state.source ? state.source.frameCount : 1;
     $('frameSlider').value = state.frame;
-    $('frameRead').textContent = `of ${n - 1} · t = ${frameTime(state.frame).toFixed(3)} s`;
+    const cur = state.points.get(state.frame);
+    $('frameRead').textContent = `/ ${n - 1} · ${frameTime(state.frame).toFixed(3)} s` +
+      (cur && ppm() > 0 ? ` · y = ${toWorld(cur).y.toFixed(3)} m` : '');
     // Don't overwrite a number while someone is typing it.
     const put = (id, v) => {
       const el = $(id);
@@ -313,10 +315,6 @@
     put('startInput', state.range.start);
     put('endInput', state.range.end);
     $('dropRelease').max = $('dropLand').max = n - 1;
-    const span = Math.max(1, n - 1);
-    const fill = $('rangeFill');
-    fill.style.left = (state.range.start / span) * 100 + '%';
-    fill.style.width = ((state.range.end - state.range.start) / span) * 100 + '%';
   }
 
   // ---------- geometry ----------
@@ -331,6 +329,8 @@
   const pxPerCss = () => stage.width / Math.max(1, stage.getBoundingClientRect().width);
 
   // ---------- drawing the stage ----------
+  // Overlays stay small and thin so the video stays readable: short axis arrows, the scale
+  // stick with round handles, small track dots and a ring on the current point.
   function render() {
     if (!state.source) return;
     const k = pxPerCss();
@@ -340,84 +340,83 @@
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.drawImage(frameCanvas, 0, 0);
     sctx.lineCap = 'round';
+    sctx.lineJoin = 'round';
 
-    const haloLine = (draw, color, w) => {
-      sctx.strokeStyle = 'rgba(0,0,0,0.55)'; sctx.lineWidth = (w + 2.5) * k; draw(); sctx.stroke();
-      sctx.strokeStyle = color; sctx.lineWidth = w * k; draw(); sctx.stroke();
+    // A soft shadow keeps thin marks visible on light and dark video alike.
+    const shadow = (on) => {
+      sctx.shadowColor = on ? 'rgba(0,0,0,0.55)' : 'transparent';
+      sctx.shadowBlur = on ? 3 * k : 0;
     };
-    const label = (text, x, y, color) => {
-      sctx.font = `500 ${13 * k}px "IBM Plex Mono", monospace`;
-      const w = sctx.measureText(text).width;
-      sctx.fillStyle = 'rgba(11,17,22,0.78)';
-      sctx.fillRect(x - 4 * k, y - 11 * k, w + 8 * k, 16 * k);
+    const stroke = (path, color, w) => { sctx.beginPath(); path(); sctx.strokeStyle = color; sctx.lineWidth = w * k; sctx.stroke(); };
+    const text = (str, x, y, color, align = 'left') => {
+      sctx.font = `600 ${12 * k}px "IBM Plex Sans", system-ui, sans-serif`;
+      sctx.textAlign = align;
+      sctx.textBaseline = 'middle';
       sctx.fillStyle = color;
-      sctx.fillText(text, x, y + 1 * k);
+      sctx.fillText(str, x, y);
     };
     const handle = (p, color) => {
-      sctx.beginPath(); sctx.arc(p.x, p.y, 6 * k, 0, 2 * Math.PI);
-      sctx.fillStyle = 'rgba(11,17,22,0.35)'; sctx.fill();
+      sctx.beginPath(); sctx.arc(p.x, p.y, 5 * k, 0, 2 * Math.PI);
+      sctx.fillStyle = col.halo; sctx.fill();
       sctx.lineWidth = 2 * k; sctx.strokeStyle = color; sctx.stroke();
     };
 
-    // Axes through the origin
+    shadow(true);
+    // Axes: short arrows from the origin.
     const o = state.origin;
-    sctx.save();
-    sctx.globalAlpha = 0.45;
-    haloLine(() => { sctx.beginPath(); sctx.moveTo(0, o.y); sctx.lineTo(stage.width, o.y); sctx.moveTo(o.x, 0); sctx.lineTo(o.x, stage.height); }, col.axes, 1);
-    sctx.restore();
-    const arm = 54 * k;
-    haloLine(() => {
-      sctx.beginPath();
+    const arm = 40 * k, head = 6 * k;
+    stroke(() => {
       sctx.moveTo(o.x, o.y); sctx.lineTo(o.x + arm, o.y);
-      sctx.moveTo(o.x + arm - 7 * k, o.y - 5 * k); sctx.lineTo(o.x + arm, o.y); sctx.lineTo(o.x + arm - 7 * k, o.y + 5 * k);
+      sctx.moveTo(o.x + arm - head, o.y - head * 0.7); sctx.lineTo(o.x + arm, o.y); sctx.lineTo(o.x + arm - head, o.y + head * 0.7);
       sctx.moveTo(o.x, o.y); sctx.lineTo(o.x, o.y - arm);
-      sctx.moveTo(o.x - 5 * k, o.y - arm + 7 * k); sctx.lineTo(o.x, o.y - arm); sctx.lineTo(o.x + 5 * k, o.y - arm + 7 * k);
-    }, col.axes, 2.5);
-    label('x', o.x + arm + 6 * k, o.y + 4 * k, col.axes);
-    label('y', o.x + 8 * k, o.y - arm, col.axes);
-    handle(o, col.axes);
+      sctx.moveTo(o.x - head * 0.7, o.y - arm + head); sctx.lineTo(o.x, o.y - arm); sctx.lineTo(o.x + head * 0.7, o.y - arm + head);
+    }, col.axes, 2);
+    text('x', o.x + arm + 6 * k, o.y, col.axes);
+    text('y', o.x, o.y - arm - 9 * k, col.axes, 'center');
 
-    // Calibration stick
+    // Scale stick with its length written beside it.
     const { a, b } = state.calib;
     const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
-    haloLine(() => {
-      sctx.beginPath();
+    stroke(() => {
       sctx.moveTo(a.x, a.y); sctx.lineTo(b.x, b.y);
-      for (const p of [a, b]) { sctx.moveTo(p.x - nx * 9 * k, p.y - ny * 9 * k); sctx.lineTo(p.x + nx * 9 * k, p.y + ny * 9 * k); }
-    }, col.scale, 2.5);
+      for (const p of [a, b]) { sctx.moveTo(p.x - nx * 7 * k, p.y - ny * 7 * k); sctx.lineTo(p.x + nx * 7 * k, p.y + ny * 7 * k); }
+    }, col.scale, 2);
+    // Write the length just past the upper end of the stick (the lower end if that would
+    // leave the picture), so it never sits on the ruler the stick is lined up with.
+    const lbl = `${state.calib.length.toFixed(3)} m`;
+    sctx.font = `600 ${12 * k}px "IBM Plex Sans", system-ui, sans-serif`;
+    const half = sctx.measureText(lbl).width / 2 + 4 * k;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const past = (p, dx, dy) => ({ x: p.x + dx * 16 * k, y: p.y + dy * 16 * k });
+    let at = uy <= 0 ? past(b, ux, uy) : past(a, -ux, -uy);
+    if (at.y < 10 * k || at.y > stage.height - 10 * k) at = uy <= 0 ? past(a, -ux, -uy) : past(b, ux, uy);
+    text(lbl, Math.max(half, Math.min(stage.width - half, at.x)), Math.max(10 * k, Math.min(stage.height - 10 * k, at.y)), col.halo, 'center');
+    shadow(false);
     handle(a, col.scale); handle(b, col.scale);
-    label(`${state.calib.length.toFixed(3)} m`, (a.x + b.x) / 2 + 14 * k, (a.y + b.y) / 2, '#cfe0ff');
+    handle(o, col.axes);
 
-    // Track points
-    const frames = [...state.points.keys()].sort((p, q) => p - q);
-    for (const f of frames) {
-      const p = state.points.get(f);
-      sctx.beginPath(); sctx.arc(p.x, p.y, 3.2 * k, 0, 2 * Math.PI);
-      sctx.fillStyle = inRange(f) ? col.track : 'rgba(200,200,200,0.8)';
+    // Track points: small dots; points outside the fit range are faint.
+    for (const [f, p] of state.points) {
+      sctx.beginPath(); sctx.arc(p.x, p.y, 2.4 * k, 0, 2 * Math.PI);
+      sctx.fillStyle = inRange(f) ? col.track : 'rgba(255,255,255,0.55)';
       sctx.fill();
-      sctx.lineWidth = 1.2 * k; sctx.strokeStyle = col.halo; sctx.stroke();
     }
     const cur = state.points.get(state.frame);
     if (cur) {
-      sctx.beginPath(); sctx.arc(cur.x, cur.y, state.ballR + 3 * k, 0, 2 * Math.PI);
-      sctx.lineWidth = 2 * k; sctx.strokeStyle = col.track; sctx.stroke();
-      const w = toWorld(cur);
-      label(`x ${w.x.toFixed(3)}  y ${w.y.toFixed(3)} m`, cur.x + state.ballR + 8 * k, cur.y - state.ballR, '#ffd1e4');
+      shadow(true);
+      stroke(() => sctx.arc(cur.x, cur.y, state.ballR + 3 * k, 0, 2 * Math.PI), col.track, 1.5);
+      shadow(false);
     }
-    if (state.tracking && state.search) {
-      const s = state.search;
-      sctx.setLineDash([6 * k, 5 * k]);
-      sctx.lineWidth = 1.2 * k; sctx.strokeStyle = col.halo;
-      sctx.strokeRect(s.x - s.r, s.y - s.r, 2 * s.r, 2 * s.r);
-      sctx.setLineDash([]);
-    }
-    // Pick-ball cursor
+    // Pick-ball / mark cursor
     if (state.mouse && (state.tool === 'ball' || state.tool === 'manual') && !state.tracking) {
       const m = state.mouse;
-      sctx.beginPath(); sctx.arc(m.x, m.y, state.ballR, 0, 2 * Math.PI);
-      sctx.moveTo(m.x - 5 * k, m.y); sctx.lineTo(m.x + 5 * k, m.y); sctx.moveTo(m.x, m.y - 5 * k); sctx.lineTo(m.x, m.y + 5 * k);
-      sctx.lineWidth = 1.5 * k; sctx.strokeStyle = col.track; sctx.stroke();
+      shadow(true);
+      stroke(() => {
+        sctx.arc(m.x, m.y, state.ballR, 0, 2 * Math.PI);
+        sctx.moveTo(m.x - 4 * k, m.y); sctx.lineTo(m.x + 4 * k, m.y); sctx.moveTo(m.x, m.y - 4 * k); sctx.lineTo(m.x, m.y + 4 * k);
+      }, col.halo, 1.2);
+      shadow(false);
     }
   }
 
@@ -635,7 +634,8 @@
   }
 
   function setTrackingUI(on) {
-    $('btnStop').disabled = !on;
+    $('btnTrack').hidden = on;
+    $('btnStop').hidden = !on;
     for (const id of ['btnTrack', 'btnAutoFind', 'btnDemo', 'btnClear', 'btnDeletePoint', 'btnDetectFps', 'frameInput']) $(id).disabled = on;
   }
 
@@ -796,6 +796,9 @@
   $('btnAutoFind').addEventListener('click', autoFind);
   $('btnTrack').addEventListener('click', startTracking);
   $('btnStop').addEventListener('click', stopTracking);
+  // Close the More menu after choosing an item or clicking elsewhere.
+  $('moreMenu').addEventListener('click', (e) => { if (e.target.closest('.menu-pop button')) $('moreMenu').open = false; });
+  document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#moreMenu')) $('moreMenu').open = false; });
   $('btnClear').addEventListener('click', () => {
     state.points.clear(); state.template = null;
     updateAnalysis(); render();
@@ -852,7 +855,8 @@
     if (e.target.closest('input, select, textarea')) return;
     if (e.key === 'ArrowRight') { step(e.shiftKey ? 10 : state.step); e.preventDefault(); }
     if (e.key === 'ArrowLeft') { step(e.shiftKey ? -10 : -state.step); e.preventDefault(); }
-    if (e.key === 'Escape') stopTracking();
+    if (e.key === 'Escape') { stopTracking(); $('moreMenu').open = false; }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !state.tracking) $('btnDeletePoint').click();
   });
 
   const num = (id, fallback) => { const v = parseFloat($(id).value); return isFinite(v) && v > 0 ? v : fallback; };
