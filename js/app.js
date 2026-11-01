@@ -40,6 +40,7 @@
     drag: null,
     mouse: null,
     analysis: null,
+    drop: { release: null, land: null },   // frames for the drop-height method
   };
 
   // ---------- status ----------
@@ -202,6 +203,9 @@
     state.points.clear();
     state.template = null;
     state.frame = 0;
+    state.drop = { release: null, land: null };
+    $('dropRelease').value = '';
+    $('dropLand').value = '';
     stage.width = frameCanvas.width = src.width;
     stage.height = frameCanvas.height = src.height;
     if (src.preset) {
@@ -308,6 +312,7 @@
     put('frameInput', state.frame);
     put('startInput', state.range.start);
     put('endInput', state.range.end);
+    $('dropRelease').max = $('dropLand').max = n - 1;
     const span = Math.max(1, n - 1);
     const fill = $('rangeFill');
     fill.style.left = (state.range.start / span) * 100 + '%';
@@ -678,10 +683,7 @@
       const dec = isFinite(a.gErr) && a.gErr > 0 ? Math.min(3, Math.max(2, 1 - Math.floor(Math.log10(a.gErr)))) : 2;
       $('gVal').textContent = a.g.toFixed(dec);
       $('gErr').textContent = isFinite(a.gErr) ? '± ' + a.gErr.toFixed(dec) : '';
-      const pct = ((a.g - state.gRef) / state.gRef) * 100;
-      const abs = Math.abs(pct);
-      pill.className = 'pill ' + (abs < 2 ? 'good' : abs < 5 ? 'warn' : 'bad');
-      pill.textContent = (pct >= 0 ? '+' : '−') + abs.toFixed(abs < 1 ? 2 : 1) + '%';
+      const abs = setComparePill(pill, a.g);
       $('gCompareText').textContent = `vs accepted ${state.gRef} m/s² (${abs < 2 ? 'close' : abs < 5 ? 'check setup' : 'far off: check scale and frame rate'})`;
       $('statGV').textContent = isFinite(a.gFromV) ? `${a.gFromV.toFixed(2)} ± ${a.gFromVErr.toFixed(2)}` : '—';
       $('statR2').textContent = a.fitY.r2.toFixed(5);
@@ -693,8 +695,45 @@
       $('fitEq').textContent = `fit: y(t) = ${c[0].toFixed(3)} ${fmtSigned(c[1], 3)}·t ${fmtSigned(c[2], 3)}·t²   (½g = ${(-c[2]).toFixed(3)})`;
     }
     drawChart(rows, a);
+    updateDrop();
     drawTable(rows);
     updateFrameUI();
+  }
+
+  // Show the % difference from the accepted g in a pill; returns the absolute % difference.
+  function setComparePill(pill, g) {
+    const pct = ((g - state.gRef) / state.gRef) * 100;
+    const abs = Math.abs(pct);
+    pill.className = 'pill ' + (abs < 2 ? 'good' : abs < 5 ? 'warn' : 'bad');
+    pill.textContent = (pct >= 0 ? '+' : '−') + abs.toFixed(abs < 1 ? 2 : 1) + '%';
+    return abs;
+  }
+
+  // Drop-height method: g = 2h/t² from the typed distance and the release and landing frames.
+  function updateDrop() {
+    const d = state.drop;
+    const h = parseFloat($('dropH').value);
+    const hErr = Math.max(0, parseFloat($('dropHErr').value) || 0);
+    const both = d.release !== null && d.land !== null;
+    const r = both ? physics.dropG(h, hErr, d.release, d.land, state.captureFps) : null;
+    const pill = $('dropPill');
+    $('btnDropScale').disabled = !(h > 0 && both && d.land > d.release);
+    if (!r) {
+      $('dropT').textContent = '—';
+      $('dropG').textContent = '—';
+      pill.className = 'pill';
+      pill.textContent = 'no data';
+      $('dropNote').textContent = both && d.land <= d.release ? 'The landing frame must come after the release frame.'
+        : !(h > 0) ? 'Enter the drop distance h.' : 'Set the release and landing frames.';
+      return;
+    }
+    $('dropT').textContent = `${r.t.toFixed(3)} ± ${r.tErr.toFixed(3)} s (${r.frames} frames)`;
+    const dec = r.gErr >= 1 ? 1 : 2;
+    $('dropG').textContent = `${r.g.toFixed(dec)} ± ${r.gErr.toFixed(dec)} m/s²`;
+    setComparePill(pill, r.g);
+    const timingBiggest = 2 * r.tErr / r.t > hErr / h;
+    $('dropNote').textContent = `vs accepted ${state.gRef} m/s²` +
+      (r.gErr / r.g > 0.02 && timingBiggest ? '. Timing is the biggest error: a higher frame rate or a higher drop shrinks it.' : '');
   }
 
   function drawChart(rows, a) {
@@ -840,6 +879,34 @@
   });
   $('calLength').addEventListener('input', () => { state.calib.length = num('calLength', state.calib.length); updateAnalysis(); render(); });
   $('gRef').addEventListener('input', () => { state.gRef = num('gRef', 9.81); updateAnalysis(); });
+
+  // Drop-height method controls.
+  function setDropFrame(which, value) {
+    const last = state.source ? state.source.frameCount - 1 : 0;
+    const f = isFinite(value) ? Math.max(0, Math.min(last, Math.round(value))) : null;
+    state.drop[which] = f;
+    $(which === 'release' ? 'dropRelease' : 'dropLand').value = f === null ? '' : f;
+    updateDrop();
+  }
+  $('dropH').addEventListener('input', updateDrop);
+  $('dropHErr').addEventListener('input', updateDrop);
+  $('dropRelease').addEventListener('change', (e) => setDropFrame('release', parseInt(e.target.value, 10)));
+  $('dropLand').addEventListener('change', (e) => setDropFrame('land', parseInt(e.target.value, 10)));
+  $('btnDropRelease').addEventListener('click', () => setDropFrame('release', state.frame));
+  $('btnDropLand').addEventListener('click', () => setDropFrame('land', state.frame));
+  $('btnDropScale').addEventListener('click', () => {
+    const { release, land } = state.drop;
+    const h = parseFloat($('dropH').value);
+    const a = state.points.get(release), b = state.points.get(land);
+    if (!a || !b) {
+      status(`Track the ball on frames ${release} and ${land} first, or mark it there with Mark by hand, then try again.`, 'warn');
+      return;
+    }
+    state.calib = { a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, length: h };
+    $('calLength').value = h.toFixed(3);
+    updateAnalysis(); render();
+    status(`Scale set from the drop: ${Math.hypot(b.x - a.x, b.y - a.y).toFixed(1)} px on screen is ${h} m.`, 'good');
+  });
   $('method').addEventListener('change', (e) => { state.method = e.target.value; });
   $('ballR').addEventListener('change', () => {
     state.ballR = Math.round(num('ballR', state.ballR));

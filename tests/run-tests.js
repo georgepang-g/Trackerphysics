@@ -35,6 +35,15 @@ test('analyzeFreeFall gives g and an uncertainty from noisy data', () => {
   near(a.v0y, -0.2, 0.05, 'v0y');
 });
 
+test('dropG gives g = 2h/t² with an uncertainty', () => {
+  // 1.2 m in 0.5 s (30 frames at 60 fps) → g = 9.6
+  const d = physics.dropG(1.2, 0.005, 10, 40, 60);
+  near(d.t, 0.5, 1e-12, 't'); near(d.g, 9.6, 1e-9, 'g');
+  near(d.gErr, 9.6 * Math.sqrt((0.005 / 1.2) ** 2 + (2 * (1 / 60) / 0.5) ** 2), 1e-9, 'gErr');
+  assert.strictEqual(physics.dropG(1.2, 0, 40, 40, 60), null, 'landing must come after release');
+  assert.strictEqual(physics.dropG(0, 0, 10, 40, 60), null, 'height must be positive');
+});
+
 // Render the demo clip once.
 const bg = demo.renderBackground();
 const frames = [];

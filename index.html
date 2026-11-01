@@ -175,6 +175,36 @@
         <div class="input-unit"><input type="number" id="gRef" min="0" step="any" value="9.81"><span>m/s²</span></div>
       </div>
     </section>
+
+    <section class="step" id="dropStep">
+      <h2><span class="step-n">6</span>Drop height and time</h2>
+      <p class="help">A second way to measure g, with no tracking. Measure how far the ball falls, from the bottom of the ball to the floor, then mark the frame it is let go and the frame it first touches the floor. The ball must start at rest.</p>
+      <div class="field-row">
+        <label for="dropH">Drop distance h</label>
+        <div class="input-unit"><input type="number" id="dropH" min="0" step="any" placeholder="1.200"><span>m</span></div>
+      </div>
+      <div class="field-row">
+        <label for="dropHErr">Uncertainty in h</label>
+        <div class="input-unit"><span>±</span><input type="number" id="dropHErr" min="0" step="any" value="0.005"><span>m</span></div>
+      </div>
+      <div class="field-row">
+        <label for="dropRelease">Release frame</label>
+        <input type="number" id="dropRelease" class="num-input mono" min="0" step="1" placeholder="—">
+        <button type="button" class="btn btn-small" id="btnDropRelease" title="The frame on screen is the last frame before the ball starts to fall">Use this frame</button>
+      </div>
+      <div class="field-row">
+        <label for="dropLand">Landing frame</label>
+        <input type="number" id="dropLand" class="num-input mono" min="0" step="1" placeholder="—">
+        <button type="button" class="btn btn-small" id="btnDropLand" title="The frame on screen is the first frame where the ball touches the floor">Use this frame</button>
+      </div>
+      <div class="drop-result">
+        <div class="drop-row"><span>Fall time t</span><span class="mono" id="dropT">—</span></div>
+        <div class="drop-row drop-g"><span>g = 2h / t²</span><span class="mono" id="dropG">—</span></div>
+        <div class="compare"><span class="pill" id="dropPill">no data</span><span id="dropNote">Enter h and both frames.</span></div>
+      </div>
+      <button type="button" class="btn btn-small" id="btnDropScale">Use this drop as the scale</button>
+      <p class="help">Use this when there is no metre stick in the video. It puts the blue stick from the ball at release to the ball at landing and sets its length to h. Track the ball on both frames first.</p>
+    </section>
   </aside>
 
   <section class="analysis" aria-label="Graphs and data">

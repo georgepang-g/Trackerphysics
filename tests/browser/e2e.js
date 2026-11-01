@@ -305,6 +305,54 @@ function serve() {
       `frames ${Math.min(...frames)}–${Math.max(...frames)}, ${frames.length} points`);
   }
 
+  // --- Drop-height method: type h, set release and landing frames; use the drop as the scale ---
+  {
+    const c = truth.mp4;
+    await openWithPicker(c.file);
+    const held = c.release - 1;          // last frame before the ball starts to fall
+    const land = c.contact + 1;          // first frame touching the floor
+    const h = (c.floor[1] - c.radius - c.truth[held][1]) / c.ppm;   // true distance the ball falls
+    const k = (await readState()).canvasW / c.width;
+    // Track first (scale stick left where it is, deliberately wrong) so the drop can set the scale.
+    await page.fill('#frameInput', String(held));
+    await page.waitForFunction((f) => TP.app.state.frame === f, held, { timeout: 5000 });
+    await page.click('[data-tool="ball"]');
+    await page.mouse.click(...(await screen(c.truth[held][0] * k, c.truth[held][1] * k)));
+    await waitStatus(/Tracked|Lost|Stopped/);
+
+    await page.fill('#dropH', h.toFixed(3));
+    await page.fill('#dropRelease', String(held));
+    await page.press('#dropRelease', 'Enter');
+    await page.fill('#frameInput', String(land));
+    await page.waitForFunction((f) => TP.app.state.frame === f, land, { timeout: 5000 });
+    await page.click('#btnDropLand');
+    const landBox = await page.inputValue('#dropLand');
+    check('Drop: Use this frame sets the landing frame', landBox === String(land), `box shows ${landBox}`);
+    const text = await page.locator('#dropG').textContent();
+    const [gDrop, gDropErr] = text.match(/[\d.]+/g).map(Number);
+    const tText = await page.locator('#dropT').textContent();
+    check('Drop: fall time from the frames', tText.includes(`(${land - held} frames)`), tText);
+    check('Drop: g = 2h/t² agrees with 9.81 within its uncertainty', Math.abs(gDrop - G) <= gDropErr,
+      `h = ${h.toFixed(3)} m → g = ${gDrop} ± ${gDropErr}`);
+
+    const before = (await readState()).calib;
+    await page.click('#btnDropScale');
+    const cal = (await readState()).calib;
+    const px = Math.hypot(cal.b.x - cal.a.x, cal.b.y - cal.a.y);
+    check('Drop: Use this drop as the scale moves the blue stick to the ball positions',
+      Math.abs(cal.length - +h.toFixed(3)) < 1e-9 && Math.abs(px / cal.length - c.ppm * k) / (c.ppm * k) < 0.01,
+      `${px.toFixed(1)} px for ${cal.length} m = ${(px / cal.length).toFixed(1)} px/m (true ${(c.ppm * k).toFixed(1)}); was ${Math.hypot(before.b.x - before.a.x, before.b.y - before.a.y).toFixed(0)} px`);
+    await page.fill('#startInput', String(c.release)); await page.press('#startInput', 'Enter');
+    await page.fill('#endInput', String(c.contact)); await page.press('#endInput', 'Enter');
+    const res = await readG();
+    check('Drop: tracked g is right with the scale taken from the drop', Math.abs(res.g - G) / G < 0.02, `g = ${res.g} ${res.err}`);
+
+    await page.fill('#dropRelease', String(land + 2));
+    await page.press('#dropRelease', 'Enter');
+    check('Drop: landing before release gives a clear message',
+      /must come after/.test(await page.locator('#dropNote').textContent()) && (await page.locator('#dropG').textContent()) === '—');
+  }
+
   // --- Drag and drop a video onto the page ---
   {
     const bytes = fs.readFileSync(path.join(CLIPS, truth.webm.file)).toString('base64');

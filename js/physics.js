@@ -120,7 +120,23 @@
     };
   }
 
-  const api = { polyfit, velocities, analyzeFreeFall, solve };
+  /*
+   * Drop-height method: a ball let go from rest falls a distance h (m) in the time between the
+   * release frame and the landing frame, so h = ½·g·t² and g = 2h/t².
+   * Each of the two frames is uncertain by about half a frame, so t is uncertain by about one
+   * frame period; that and the height uncertainty hErr give the uncertainty in g.
+   */
+  function dropG(h, hErr, releaseFrame, landingFrame, fps) {
+    const frames = landingFrame - releaseFrame;
+    if (!(h > 0) || !(fps > 0) || !(frames > 0)) return null;
+    const t = frames / fps;
+    const tErr = 1 / fps;
+    const g = (2 * h) / (t * t);
+    const gErr = g * Math.sqrt(((hErr || 0) / h) ** 2 + ((2 * tErr) / t) ** 2);
+    return { t, tErr, g, gErr, frames };
+  }
+
+  const api = { polyfit, velocities, analyzeFreeFall, dropG, solve };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else (root.TP = root.TP || {}).physics = api;
 })(typeof window !== 'undefined' ? window : globalThis);

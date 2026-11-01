@@ -46,6 +46,24 @@ already been tracked, so you can see the whole workflow before you film anything
    difference from the accepted value, and a cross-check of g from the slope of v<sub>y</sub>(t).
    *Copy CSV* / *Download CSV* export the data table for a spreadsheet.
 
+### Drop height and time (second method)
+
+Panel step 6 measures g without tracking, the classic way. Measure the drop distance **h** with a
+tape measure, from the bottom of the ball to the floor, and type it in with its uncertainty. Then
+set the **release frame** (the last frame before the ball starts to fall) and the **landing frame**
+(the first frame where it touches the floor). Type the frame numbers, or step to the frame and press
+*Use this frame*. The app computes
+
+    t = (landing frame − release frame) / capture rate,   g = 2h / t²
+
+The ball must start at rest. Each frame mark can be off by about half a frame, so t is uncertain by
+about one frame period, and that usually dominates the error. A higher frame rate or a higher drop
+gives a better result.
+
+*Use this drop as the scale* is for videos with no metre stick in the shot. Track the ball first.
+The button then puts the blue stick from the ball at release to the ball at landing and sets its
+length to h, which calibrates the tracking analysis as well.
+
 ### How g is measured
 
 With y up, a freely falling ball follows
