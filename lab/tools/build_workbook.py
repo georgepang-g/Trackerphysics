@@ -296,5 +296,89 @@ dt.sheet_properties.pageSetUpPr.fitToPage = True
 dt.page_setup.fitToWidth = 1
 dt.page_setup.fitToHeight = 0
 
+# ---------------------------------------------------------------- All runs combined (pooled data, one fit)
+al = wb.create_sheet('All runs', 2)
+al['A1'] = 'All runs combined: every frame of all runs in one data set'
+al['A1'].font = f_title
+al['A2'] = ('Pooling the runs gives one fit through several hundred points, which shrinks the random (scatter) part of the '
+            'uncertainty. It does not remove systematic effects such as air resistance. Values are linked to the run sheets.')
+al['A2'].font = f_note
+hr = 4
+header(al, hr, 1, ['Run', 'Video', 'TADJ (s)', 't² (s²)', 'Distance fallen d (m)'])
+header(al, hr, 7, ['Run', 'TADJ (s)', 'Vav (m/s)'])
+pr = vr = hr + 1
+for n, title, name, nrows, v_first, v_last in results:
+    for src in range(5, 5 + nrows):                       # every position
+        al.cell(pr, 1, n).font = f_body
+        al.cell(pr, 2, name).font = f_body
+        c = al.cell(pr, 3, f"='{title}'!C{src}"); c.font = f_link; c.number_format = '0.0000'
+        al.cell(pr, 4, f'=(C{pr}-$L$16)^2').number_format = '0.00000'
+        c = al.cell(pr, 5, f"={names['H']}-'{title}'!E{src}"); c.font = f_link; c.number_format = '0.0000'
+        for col in range(1, 6): al.cell(pr, col).border = box
+        pr += 1
+    for src in range(v_first, v_last + 1):                # every velocity
+        al.cell(vr, 7, n).font = f_body
+        c = al.cell(vr, 8, f"='{title}'!C{src}"); c.font = f_link; c.number_format = '0.0000'
+        c = al.cell(vr, 9, f"='{title}'!G{src}"); c.font = f_link; c.number_format = '0.000'
+        for col in range(7, 10): al.cell(vr, col).border = box
+        vr += 1
+p1, p2, q1, q2 = hr + 1, pr - 1, hr + 1, vr - 1
+Y, X = f'I{q1}:I{q2}', f'H{q1}:H{q2}'
+D, T2 = f'E{p1}:E{p2}', f'D{p1}:D{p2}'
+al['K4'] = 'Combined results'; al['K4'].font = f_bold
+combined = [
+    ('Velocity vs time (manual, Task 5)', None, None),
+    ('Number of velocity points', f'=COUNT({Y})', '0'),
+    ('g = −slope (m/s²)', f'=-SLOPE({Y},{X})', '0.000'),
+    ('Standard error of g (m/s²)', f'=INDEX(LINEST({Y},{X},TRUE,TRUE),2,1)', '0.000'),
+    ('R²', f'=RSQ({Y},{X})', '0.0000'),
+    ('Distance fallen vs t² (manual, theory: d = ½gt²)', None, None),
+    ('Number of positions', f'=COUNT({D})', '0'),
+    ('g = 2 × slope (m/s²)', f'=2*SLOPE({D},{T2})', '0.000'),
+    ('Standard error of g (m/s²)', f'=2*INDEX(LINEST({D},{T2},TRUE,TRUE),2,1)', '0.000'),
+    ('R²', f'=RSQ({D},{T2})', '0.0000'),
+    ('For comparison: mean of the 9 separate runs (m/s²)', f"=Summary!C{last + 3}", '0.000'),
+]
+for i, (label, formula, fmt) in enumerate(combined, start=5):
+    cl = al.cell(i, 11, label)
+    if formula is None:
+        cl.font = f_bold
+        continue
+    cl.font = f_body
+    c = al.cell(i, 12, formula); c.number_format = fmt; c.border = box
+    if label.startswith('g ='):
+        c.font = f_bold; c.fill = fill_result
+    else:
+        c.font = f_link if 'Summary' in formula else f_body
+al.cell(16, 11, 'Shift of t = 0 used for the d–t² graph (s)').font = f_body
+c = al.cell(16, 12, 0); c.font = f_input; c.fill = fill_input; c.border = box; c.number_format = '0.000'
+al.cell(17, 11, 'The velocity–time slope does not depend on where t = 0 is, so it is the main result. The d–t² slope does: '
+                'the ball was let go somewhere within one frame (0.008 s) after t = 0, and shifting t = 0 across that frame '
+                'changes this g by about 0.35 m/s². Try 0.004 in the yellow cell.').font = f_note
+al.cell(18, 11, 'So the d–t² standard error above understates its real uncertainty (about ±0.2 m/s² from the release '
+                'timing). Air resistance lowers both slopes; see the Summary sheet.').font = f_note
+for (anchor, title_, xref, yref, xt, yt, xf) in (
+        ('K20', f'Average velocity vs adjusted time — all runs ({q2 - q1 + 1} points)', (8, q1, q2), (9, q1, q2), 'TADJ (s)', 'Vav (m/s)', '0.00'),
+        ('K40', f'Distance fallen vs time squared — all runs ({p2 - p1 + 1} points)', (4, p1, p2), (5, p1, p2), 't² (s²)', 'd (m)', '0.00')):
+    ch = ScatterChart()
+    ch.title = title_
+    ch.style = 13
+    ch.x_axis.title = xt; ch.y_axis.title = yt
+    ch.x_axis.number_format = xf; ch.y_axis.number_format = '0.0'
+    ch.x_axis.delete = False; ch.y_axis.delete = False
+    ch.x_axis.tickLblPos = 'low'
+    ch.legend = None
+    se = Series(Reference(al, min_col=yref[0], min_row=yref[1], max_row=yref[2]),
+                Reference(al, min_col=xref[0], min_row=xref[1], max_row=xref[2]), title='All runs')
+    style_points(se, RUN_COLOURS[0], 3)
+    se.trendline = Trendline(trendlineType='linear', dispEq=True, dispRSqr=True,
+                             trendlineLbl=TrendlineLabel(numFmt=NumFmt(formatCode='0.000', sourceLinked=False)))
+    ch.series.append(se)
+    ch.height, ch.width = 9.5, 17
+    al.add_chart(ch, anchor)
+for col, w in zip('ABCDEFGHIJKL', (6, 11, 10, 10, 13, 3, 6, 10, 10, 3, 46, 11)):
+    al.column_dimensions[col].width = w
+al.freeze_panes = 'A5'
+
 wb.save(OUT)
 print('saved', OUT, 'with', len(runs), 'runs')

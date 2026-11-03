@@ -54,6 +54,17 @@ Mean **8.89 m/s²**, SD 0.18, uncertainty of the mean 0.06 (scale adds 0.02). **
 In every run the second half of the fall has a smaller acceleration than the first half (means 9.22 → 8.42 m/s²):
 air resistance on the light ball with holes. Fall time from release to touchdown is about 0.40–0.42 s.
 
+### All runs combined (pooled fit)
+
+- Velocity vs time, 424 points: **g = 8.882 ± 0.032 m/s²** (R² 0.9946). This is the main pooled result. Its slope
+  does not depend on where t = 0 is.
+- Distance fallen vs t², 451 points: g = 9.510 ± 0.022 m/s² with t = 0 at the last rest frame. This is **very
+  sensitive to t = 0**: the ball was let go within one frame after it, and shifting t = 0 across that frame
+  moves g from 9.51 to 9.85 (9.15 using each run's fitted release instant). Real uncertainty is about ±0.2–0.3.
+  The workbook's All runs sheet has a yellow cell to shift t = 0 and see this.
+- Pooling shrinks the random error (±0.18 per run → ±0.03), but not the systematic error from air resistance.
+- Interpolating extra points between frames would not reduce the error, so it isn't done. Every recorded frame is used.
+
 The earlier 30 fps analysis of compressed copies (6 runs, mean 8.77 m/s²) is superseded; its data stays in
 `lab/data/` (track_run*.json, fits_px.json, calibration.json).
 

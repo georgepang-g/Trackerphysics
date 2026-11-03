@@ -89,5 +89,41 @@ for name in runs:
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.print_area = f'A1:F{last}'
+# One big table with every frame of every run, linked to the run sheets above.
+al = wb.create_sheet('All runs', 0)
+al['A1'] = 'All runs — every frame of every run'
+al['A1'].font = f_title
+al['A2'] = 'Linked to the run sheets. Time restarts at 0 for each run (the last frame before the ball falls).'
+al['A2'].font = f_note
+heads = ['Run', 'Video', 'Frame', 'Time (s)', 'Height (m)', 'Smoothed height (m)', 'Average velocity (m/s)']
+for j, h in enumerate(heads, start=1):
+    c = al.cell(4, j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+al.row_dimensions[4].height = 32
+rr = 5
+for k, ws in enumerate(wb.worksheets[1:], start=1):
+    video = ws.title.split('(')[-1].rstrip(')')
+    src = 5
+    while ws.cell(src, 2).value is not None:
+        q = f"'{ws.title}'!"
+        al.cell(rr, 1, k)
+        al.cell(rr, 2, video)
+        al.cell(rr, 3, f'={q}B{src}')
+        c = al.cell(rr, 4, f'={q}C{src}'); c.number_format = '0.0000'
+        c = al.cell(rr, 5, f'={q}D{src}'); c.number_format = '0.0000'
+        c = al.cell(rr, 6, f'=IF({q}E{src}="","",{q}E{src})'); c.number_format = '0.0000'
+        c = al.cell(rr, 7, f'=IF({q}F{src}="","",{q}F{src})'); c.number_format = '0.000'
+        for col in range(1, 8):
+            cell = al.cell(rr, col); cell.border = box; cell.font = f_body
+            cell.alignment = Alignment(horizontal='center')
+            if k % 2 == 0: cell.fill = fill_band
+        rr += 1; src += 1
+for col, w in zip('ABCDEFG', (6, 12, 9, 12, 13, 15, 16)):
+    al.column_dimensions[col].width = w
+al.freeze_panes = 'A5'
+al.print_title_rows = '4:4'
+al.sheet_properties.pageSetUpPr.fitToPage = True
+al.page_setup.fitToWidth = 1
+al.page_setup.fitToHeight = 0
+
 wb.save(out)
-print('saved', out, len(runs), 'sheets')
+print('saved', out, len(runs), 'run sheets and an All runs sheet')
