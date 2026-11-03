@@ -56,16 +56,44 @@ these. Video order: 1 dc95a2e9, 2 e8377417, 3 ca6e7598, 4 ba985988, 5 1f8cb790, 
 g per run: 9.0583, 9.3372, 9.7036, 8.5280, 8.5925, 9.4651, 9.4640, 9.4127, 9.4591, 9.5071 m/s².
 Mean 9.25 m/s², SD 0.379 m/s², 5.71% error against 9.81.
 
+## Analysis decisions (Nov 3)
+
+- **30 fps**, as George asked: the clips play in real time, so t_adj = (frame − release frame)/30.
+- **Drop height 82.5 cm** from the bottom of the ball to the base plate it lands on (George's measurement).
+- **Scale from the drop itself:** the ball centre moves exactly 0.825 m from rest until touchdown. Touchdown is
+  where the falling and rebounding parabolas meet (`lab/tools/calibrate.py`); a line drawn at that height sits
+  on the base plate in the frames. Per-run scale 372.6–387.6 px/m (640-px frame). Mean **381.3 ± 2.1 px/m**
+  is used for all runs, because the camera did not move.
+- **George's analysis is independent of Ryan's**: own tracking, own calibration (from the drop height, not the
+  metre stick), the handout's forward-difference Vav, plus a first-half / second-half check for air resistance.
+
+## Results so far (6 runs)
+
+| Run | g from Vav–TADJ slope (m/s²) | R² |
+|---|---|---|
+| 1 | 8.636 | 0.9980 |
+| 2 | 8.609 | 0.9994 |
+| 3 | 8.749 | 0.9983 |
+| 4 | 8.726 | 0.9996 |
+| 5 | 8.856 | 0.9983 |
+| 6 | 9.067 | 0.9953 |
+
+Mean **8.77 m/s²**, SD 0.17, uncertainty of the mean 0.07 (scale adds about 0.05). **10.6% below 9.81.**
+
+The low value is real physics, not a mistake: fitting a cubic shows the acceleration starts at about
+9.5 ± 0.2 m/s² and drops to about 7.8 ± 0.2 m/s² by the time the ball reaches about 3.5 m/s. That matches air
+resistance on a light ball with holes. In the workbook, the first half of the fall averages 9.14 m/s² and the
+second half 8.66 m/s².
+
+Workbook: `lab/Experiment2_Gravity_George.xlsx`. Rebuild after adding runs with
+`python3 lab/tools/build_workbook.py lab/data lab/Experiment2_Gravity_George.xlsx`.
+
 ## Still needed
 
-- [ ] **Original videos**, not the chat copies (Google Drive keeps full quality). They should show the metre-stick
-      markings and give 4–8× more frames per drop.
-- [ ] The remaining 4 videos.
-- [ ] Confirm 120 vs 240 fps (the originals will show it).
-- [ ] If the originals still don't show the scale: a measured distance visible in the video, e.g. the height of the
-      tape mark, or the hanging ball's height above the base plate.
+- [ ] The remaining 4 videos (runs 7–10). Same steps: `green_track.py` → `fit_px.py` → `calibrate.py` → `build_workbook.py`
+      (add the new run ids to `VIDEO_IDS` in `build_workbook.py`).
 
-## Plan once the scale is known
+## Method summary
 
 1. Convert to metres. h measured downward from the release point, t = 0 at release.
 2. Follow Tasks 4–6: t_adj, smoothed h, average velocity, v–t trendline per run, table of g, mean and SD, % error.

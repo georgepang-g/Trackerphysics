@@ -5,7 +5,7 @@ A = sys.argv[1]
 fps = 30.0
 rows = []
 for v in range(1, 7):
-    d = json.load(open(f'{A}/track_v{v}.json'))
+    d = json.load(open(f'{A}/track_run{v}.json'))
     s = 640 / d['W']
     tr = [t for t in d['track'] if not t.get('lost')]
     f = np.array([t['frame'] for t in tr]); y = np.array([t['y'] for t in tr]) * s
