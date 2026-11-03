@@ -114,11 +114,34 @@ cover.push(p(t('Also save both Excel files (Experiment2_Gravity_George.xlsx and 
 
 // ---------------------------------------------------------------- page 5
 const page5 = [
-  pageBand('LAB BOOK — PAGE 5', 'Purpose · Apparatus · Procedure (group page, already written)'),
+  pageBand('LAB BOOK — PAGE 5', 'Title · Purpose · Apparatus · Procedure (write your own)'),
   gap(),
-  p(t('This page is already done. Make two corrections:', { bold: true })),
-  p([t('Purpose, the equation: change  '), t('h = v₀ + ½gt²', { size: 22 }), t('  to  '), ink('h = v₀t + ½gt²', { bold: true })], { bullet: true }),
-  p([t('Procedure step 2: cross out "240 fps in slow-mo mode" and write  '), ink('120 fps (normal video)', { bold: true })], { bullet: true }),
+  new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [6200, 3160], rows: [new TableRow({ children: [
+    new TableCell({ width: { size: 6200, type: WidthType.DXA }, borders: noBorders, children: [boxed(ink('Experiment 2: Gravitational Acceleration', { bold: true, size: 26 }))] }),
+    new TableCell({ width: { size: 3160, type: WidthType.DXA }, borders: noBorders, children: [
+      p(ink('George (with Ryan, Eric)', { size: 21 }), { align: AlignmentType.RIGHT, after: 40 }),
+      p(ink('Oct 30', { size: 21 }), { align: AlignmentType.RIGHT, after: 0 })] }),
+  ] })] }),
+  gap(80),
+  heading('Purpose:'),
+  ownWords('Write 2–3 sentences in your own words, including:', [
+    'Aim: measure the acceleration due to gravity, g (m/s²), by filming a ball dropped from rest through a measured height (82.5 cm).',
+    'The video (120 frames per second) gives the ball\'s height at each moment, so its velocity can be found over time.',
+    'For an object dropped from rest, velocity increases at a constant rate, so a graph of velocity against time is a straight line with slope g.',
+  ]),
+  p([ink('h = v₀t + ½gt²', { bold: true }), ink('   with v₀ = 0:   h = ½gt²', { size: 22 }), ink('      v = v₀ + gt', { size: 22 })], { before: 100, indent: 360 }),
+  heading('Apparatus:'),
+  p(t('Draw this by hand (pencil and ruler) and label it:', { size: 20, color: '595959', italics: true }), { after: 60 }),
+  p(img('apparatus', 400), { align: AlignmentType.CENTER, after: 20 }),
+  p(ink('Materials: ring stand with clamp · ball on a string · metre stick · phone camera (120 fps) · monopod with clamp · computer with Excel', { size: 20 })),
+  heading('Procedure:'),
+  ownWords('Number the steps and write them in your own words, including:', [
+    'Set up the ring stand and hang the ball from the clamp by a string. Use the metre stick to set the bottom of the ball 82.5 cm above the base plate.',
+    'Put the phone on the monopod 1–2 m away, level with the middle of the drop, so the whole fall is in view. Set the camera to 120 fps (normal video).',
+    'Start recording, let go of the string so the ball falls from rest, then stop recording. Repeat for 10 trials.',
+    'Transfer the videos to the computer and measure the ball\'s position in every frame with a video-tracking program.',
+    'In Excel, find the time, height, smoothed height and average velocity for each run, graph velocity against time, and use the slope of the trendline to find g.',
+  ]),
 ];
 
 // ---------------------------------------------------------------- page 6
