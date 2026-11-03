@@ -67,7 +67,7 @@ Mean 9.25 m/s², SD 0.379 m/s², 5.71% error against 9.81.
 - **George's analysis is independent of Ryan's**: own tracking, own calibration (from the drop height, not the
   metre stick), the handout's forward-difference Vav, plus a first-half / second-half check for air resistance.
 
-## Results so far (6 runs)
+## Results (6 runs, final unless higher-fps videos arrive)
 
 | Run | g from Vav–TADJ slope (m/s²) | R² |
 |---|---|---|
@@ -88,10 +88,13 @@ second half 8.66 m/s².
 Workbook: `lab/Experiment2_Gravity_George.xlsx`. Rebuild after adding runs with
 `python3 lab/tools/build_workbook.py lab/data lab/Experiment2_Gravity_George.xlsx`.
 
-## Still needed
+## Scope
 
-- [ ] The remaining 4 videos (runs 7–10). Same steps: `green_track.py` → `fit_px.py` → `calibrate.py` → `build_workbook.py`
-      (add the new run ids to `VIDEO_IDS` in `build_workbook.py`).
+- **Final analysis uses only these 6 videos** (George, Nov 3). No runs 7–10.
+- George may send higher-frame-rate originals later. If he does: re-run `green_track.py` → `fit_px.py` →
+  `calibrate.py` on them, set the frame rate on the Setup sheet, and rebuild the workbook.
+- The workbook's "Data tables" sheet lays out time, height, smoothed height and average velocity per run
+  (same columns as the manual's Excel table), linked to the run sheets.
 
 ## Method summary
 

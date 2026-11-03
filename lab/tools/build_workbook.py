@@ -267,5 +267,38 @@ sm.add_chart(ch, 'I4')
 for col, w in zip('ABCDEFG', (30, 14, 12, 10, 12, 16, 17)):
     sm.column_dimensions[col].width = w
 
+# ---------------------------------------------------------------- Data tables (printable, one block per run)
+dt = wb.create_sheet('Data tables', 2)
+dt['A1'] = 'Recorded data for each run'
+dt['A1'].font = f_title
+dt['A2'] = ('Time from the frame where the ball starts to move (30 fps). Height = bottom of the ball above the stand. '
+            'Smoothed height = average of each height and its two neighbours. Average velocity = (HS(i+1) − HS(i))/Δt. '
+            'Values are linked to the run sheets.')
+dt['A2'].font = f_note
+heads = ['', 'Time (s)', 'Height (m)', 'Smoothed height (m)', 'Average velocity (m/s)']
+longest = max(bot - rel for _, _, rel, bot in summary_rows)
+for idx, (v, title, rel, bot) in enumerate(summary_rows):
+    c0 = 1 if idx % 2 == 0 else 7
+    r0 = 4 + (idx // 2) * (longest + 4)
+    dt.cell(r0, c0, f'Run {v}').font = f_bold
+    for j, h in enumerate(heads):
+        c = dt.cell(r0 + 1, c0 + j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+    for k in range(bot - rel):
+        src = 5 + k                         # first data row on the run sheet
+        r = r0 + 2 + k
+        dt.cell(r, c0, f't{k + 1}').font = f_body
+        for j, col in enumerate('CEFG', start=1):
+            ref = f"'{title}'!{col}{src}"
+            formula = f'={ref}' if col in 'CE' else f'=IF({ref}="","",{ref})'
+            c = dt.cell(r, c0 + j, formula); c.font = f_link; c.number_format = '0.000'
+        for j in range(5):
+            dt.cell(r, c0 + j).border = box
+for col, w in zip('ABCDEFGHIJK', (5, 10, 11, 13, 14, 3, 5, 10, 11, 13, 14)):
+    dt.column_dimensions[col].width = w
+dt.page_setup.orientation = 'portrait'
+dt.page_setup.fitToWidth = 1
+dt.sheet_properties.pageSetUpPr.fitToPage = True
+dt.page_setup.fitToHeight = 0
+
 wb.save(OUT)
 print('saved', OUT)
