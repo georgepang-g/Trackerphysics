@@ -1,12 +1,13 @@
 """
-Build the Excel workbook for Experiment 2 (gravitational acceleration) from the tracked ball positions.
+Build the Excel workbook for Experiment 2 (gravitational acceleration) from the analysed drops.
 
-    python3 lab/tools/build_workbook.py lab/data lab/Experiment2_Gravity_George.xlsx
+    python3 lab/tools/build_workbook.py lab/data/runs_120fps.json lab/Experiment2_Gravity_George.xlsx [EXCLUDE ...]
 
+Input is the output of hi_analyze.py. Runs named in EXCLUDE (e.g. IMG_3041, a duplicate clip) are left out.
 Follows the lab manual's Tasks 4-6: per run a time column, height, 3-point smoothed height, average
 velocity, and a velocity-time graph whose trendline slope is -g; then a table of g with mean and SD.
-Everything downstream of the measured positions is an Excel formula, so changing the frame rate, drop
-height or scale on the Setup sheet updates every result.
+Everything downstream of the measured positions and frame times is an Excel formula, so changing the drop
+height on the Setup sheet updates every result.
 """
 import json
 import sys
@@ -16,11 +17,12 @@ from openpyxl import Workbook
 from openpyxl.chart import Reference, ScatterChart, Series
 from openpyxl.chart.data_source import NumFmt
 from openpyxl.chart.trendline import Trendline, TrendlineLabel
-from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-DATA, OUT = Path(sys.argv[1]), Path(sys.argv[2])
-VIDEO_IDS = {1: 'dc95a2e9', 2: 'e8377417', 3: 'ca6e7598', 4: 'ba985988', 5: '1f8cb790', 6: '37e4371a'}
+SRC, OUT = Path(sys.argv[1]), Path(sys.argv[2])
+EXCLUDE = set(sys.argv[3:])
+data = json.loads(SRC.read_text())
+runs = [r for r in data['runs'] if r['name'] not in EXCLUDE]
 
 FONT = 'Arial'
 f_body = Font(name=FONT, size=10)
@@ -34,10 +36,12 @@ fill_head = PatternFill('solid', fgColor='1F4E79')
 fill_input = PatternFill('solid', fgColor='FFF2CC')
 fill_result = PatternFill('solid', fgColor='E2EFDA')
 thin = Side(style='thin', color='BFBFBF')
+box = Border(left=thin, right=thin, top=thin, bottom=thin)
+center = Alignment(horizontal='center', vertical='center', wrap_text=True)
 RUN_COLOURS = ['1F4E79', 'C55A11', '548235', '7030A0', 'BF8F00', 'C00000', '2E75B6', '808080', '00B0F0', 'FF66CC']
 
 
-def style_points(series, colour, size=6):
+def style_points(series, colour, size=5):
     series.marker.symbol = 'circle'
     series.marker.size = size
     series.marker.graphicalProperties.solidFill = colour
@@ -53,12 +57,12 @@ def style_axes(chart):
     chart.x_axis.delete = False
     chart.y_axis.delete = False
     chart.x_axis.tickLblPos = 'low'      # velocities are negative: keep the time labels at the bottom
-box = Border(left=thin, right=thin, top=thin, bottom=thin)
-center = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
-fits = {r['video']: r for r in json.loads((DATA / 'fits_px.json').read_text())}
-calib = {c['video']: c for c in json.loads((DATA / 'calibration.json').read_text())}
-runs = sorted(fits)
+
+def header(ws, row, col, titles):
+    for j, h in enumerate(titles):
+        c = ws.cell(row, col + j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+
 
 wb = Workbook()
 
@@ -67,106 +71,102 @@ st = wb.active
 st.title = 'Setup'
 st['A1'] = 'Experiment 2: Gravitational Acceleration — setup and calibration'
 st['A1'].font = f_title
-rows = [
-    ('Frame rate of the video files', 30, 'fps', 'User: analyse the videos at 30 fps. The clips play in real time.', 'fps'),
-    ('Real-time factor (filmed fps ÷ playback fps)', 1, '', 'Clips play at real speed, so 1. For slow motion use filmed ÷ playback, e.g. 960/30 = 32 in the manual.', 'factor'),
-    ('Drop height h (bottom of ball to the stand)', 0.825, 'm', 'User measurement: 82.5 cm from the bottom of the ball to the base plate it lands on.', 'H'),
+inputs = [
+    ('Drop height h (bottom of ball to the stand)', data['H_drop'], 'm', 'Measured: 82.5 cm from the bottom of the ball to the base plate it lands on.', 'H'),
+    ('Real-time factor (filmed fps ÷ playback fps)', 1, '', 'The videos were filmed at 120 fps and play in real time, so 1. (The manual\'s 960 fps example uses 32.)', 'factor'),
     ('Accepted value of g', 9.81, 'm/s²', 'Value given in the lab manual (section 7.2).', 'gref'),
 ]
 names = {}
-for i, (label, val, unit, note, key) in enumerate(rows, start=3):
+for i, (label, val, unit, note, key) in enumerate(inputs, start=3):
     st.cell(i, 1, label).font = f_body
     c = st.cell(i, 2, val); c.font = f_input; c.fill = fill_input; c.border = box
     st.cell(i, 3, unit).font = f_body
     st.cell(i, 4, note).font = f_note
-    names[key] = f"Setup!$B${i}"
-st['B5'].number_format = '0.000'
+    names[key] = f'Setup!$B${i}'
+st['B3'].number_format = '0.000'
+st['A7'] = 'Camera: iPhone, 3840×2160, 120 frames per second in real time. Times are each frame\'s own timestamp from the video file.'
+st['A7'].font = f_note
 
-r0 = 9
+r0 = 10
 st.cell(r0 - 1, 1, 'Calibration: pixels per metre from the 82.5 cm drop').font = f_bold
-st.cell(r0 - 1, 4, 'The ball centre moves exactly h from rest until the ball touches the stand. Touchdown is where the '
-                   'falling and rebounding paths meet (found by fitting both). Positions are in a 640-px-wide frame '
-                   '(videos 2 and 4 were 960 px wide and were scaled by 2/3).').font = f_note
-hdr = ['Run', 'Ball centre at rest y (px)', 'Ball centre at touchdown y (px)', 'Drop (px)', 'Scale (px/m)']
-for j, h in enumerate(hdr, start=1):
-    c = st.cell(r0, j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+st.cell(r0 - 1, 4, 'The ball centre moves exactly h from rest until the ball touches the stand. Touchdown is where the falling '
+                   'and rebounding paths meet (both fitted). Pixel positions are in the full 3840×2160 frame.').font = f_note
+header(st, r0, 1, ['Run', 'Video', 'Ball centre at rest y (px)', 'Ball centre at touchdown y (px)', 'Drop (px)', 'Scale (px/m)'])
 first_cal = r0 + 1
-for k, v in enumerate(runs):
-    r = first_cal + k
-    s = 640 / calib[v]['W']
-    st.cell(r, 1, v).font = f_body
-    for col, val in ((2, calib[v]['y_rest'] * s), (3, calib[v]['y_contact'] * s)):
-        c = st.cell(r, col, round(val, 2)); c.font = f_input; c.number_format = '0.00'
-    st.cell(r, 4, f'=C{r}-B{r}').number_format = '0.0'
-    st.cell(r, 5, f'=D{r}/{names["H"]}').number_format = '0.0'
-    for col in range(1, 6):
-        st.cell(r, col).border = box
-        if col in (1, 4, 5): st.cell(r, col).font = f_body
+cal_row = {}
+for k, r in enumerate(runs):
+    row = first_cal + k
+    cal_row[r['name']] = row
+    st.cell(row, 1, k + 1).font = f_body
+    st.cell(row, 2, r['name']).font = f_body
+    for col, val in ((3, r['y_rest']), (4, r['y_contact'])):
+        c = st.cell(row, col, round(val, 1)); c.font = f_input; c.number_format = '0.0'
+    st.cell(row, 5, f'=D{row}-C{row}').number_format = '0.0'
+    st.cell(row, 6, f'=E{row}/{names["H"]}').number_format = '0.0'
+    for col in range(1, 7):
+        st.cell(row, col).border = box
+        if col in (5, 6): st.cell(row, col).font = f_body
 last_cal = first_cal + len(runs) - 1
-r = last_cal + 1
-st.cell(r, 1, 'Mean scale used for every run').font = f_bold
-c = st.cell(r, 5, f'=AVERAGE(E{first_cal}:E{last_cal})'); c.font = f_bold; c.number_format = '0.0'; c.fill = fill_result; c.border = box
-names['scale'] = f'Setup!$E${r}'
-st.cell(r + 1, 1, 'Standard deviation of the scale').font = f_body
-st.cell(r + 1, 5, f'=STDEV(E{first_cal}:E{last_cal})').number_format = '0.0'
-st.cell(r + 2, 1, 'Uncertainty of the mean scale (SD ÷ √n)').font = f_body
-st.cell(r + 2, 5, f'=E{r + 1}/SQRT(COUNT(E{first_cal}:E{last_cal}))').number_format = '0.0'
-st.cell(r + 3, 1, 'Relative uncertainty of the scale').font = f_body
-st.cell(r + 3, 5, f'=E{r + 2}/E{r}').number_format = '0.0%'
-names['scale_rel'] = f'Setup!$E${r + 3}'
-st.cell(r + 1, 4, 'The camera did not move between clips, so one mean scale is more reliable than each run\'s own.').font = f_note
+row = last_cal + 1
+st.cell(row, 1, 'Mean scale used for every run').font = f_bold
+c = st.cell(row, 6, f'=AVERAGE(F{first_cal}:F{last_cal})'); c.font = f_bold; c.number_format = '0.0'; c.fill = fill_result; c.border = box
+names['scale'] = f'Setup!$F${row}'
+st.cell(row + 1, 1, 'Standard deviation of the scale').font = f_body
+st.cell(row + 1, 6, f'=STDEV(F{first_cal}:F{last_cal})').number_format = '0.0'
+st.cell(row + 2, 1, 'Uncertainty of the mean scale (SD ÷ √n)').font = f_body
+st.cell(row + 2, 6, f'=F{row + 1}/SQRT(COUNT(F{first_cal}:F{last_cal}))').number_format = '0.0'
+st.cell(row + 3, 1, 'Relative uncertainty of the scale').font = f_body
+st.cell(row + 3, 6, f'=F{row + 2}/F{row}').number_format = '0.00%'
+names['scale_rel'] = f'Setup!$F${row + 3}'
+st.cell(row + 1, 4, 'The camera did not move between drops, so one mean scale is more reliable than each run\'s own.').font = f_note
 
-legend = r + 6
+legend = row + 6
 st.cell(legend, 1, 'How to read this workbook').font = f_bold
 for i, line in enumerate([
-    'Blue text on yellow = numbers you can change (inputs and measured positions). Black = formulas. Green = links to another sheet.',
+    'Blue text = measured values (from the videos) and inputs you can change. Black = formulas. Green = links to another sheet.',
     'Run sheets follow the lab manual, Task 4: T, TADJ, H, HS (3-point smoothed), Vav = (HS(i+1) − HS(i)) / Δt.',
     'Each run\'s graph is Vav against TADJ with a linear trendline (Task 5). Its slope is −g.',
-    'Summary sheet: table of g for every run, mean, standard deviation and % error (Task 6).',
-    'Ball positions were measured by tracking the green ball frame by frame and checked by eye on every frame.',
+    'Summary: table of g for every run, mean, standard deviation and % error (Task 6). Data tables: printable time and position tables.',
+    'Ball positions were measured by tracking the green ball in every frame; the positions were checked by eye on the frames.',
+    'IMG_3041 is not used: it is a second, shorter copy of the same drop as IMG_3055 (identical positions in every frame).',
 ], start=1):
     st.cell(legend + i, 1, line).font = f_note
-st.column_dimensions['A'].width = 44
-for col, w in (('B', 18), ('C', 18), ('D', 14), ('E', 14)):
+for col, w in zip('ABCDEF', (44, 12, 16, 18, 12, 13)):
     st.column_dimensions[col].width = w
-st.column_dimensions['D'].width = 14
 
 # ---------------------------------------------------------------- Run sheets
-summary_rows = []
-for v in runs:
-    ws = wb.create_sheet(f'Run {v}')
-    d = json.loads((DATA / f'track_run{v}.json').read_text())
-    s = 640 / d['W']
-    fit = fits[v]
-    pts = [t for t in d['track'] if not t.get('lost') and fit['release'] <= t['frame'] <= fit['bottom'] - 1]
-    ws['A1'] = f'Run {v} — falling ball (video {VIDEO_IDS[v]}…, {d["W"]}×{d["H"]})'
+results = []          # (run number, sheet title, video name, number of data rows)
+for k, r in enumerate(runs):
+    n = k + 1
+    ws = wb.create_sheet(f'Run {n}')
+    rows = r['rows']
+    ws['A1'] = f'Run {n} — {r["name"]}.MOV'
     ws['A1'].font = f_title
-    ws['A2'] = (f't = 0 at frame {fit["release"]}, the frame where the ball starts to move. Last row: frame {fit["bottom"] - 1}, '
-                f'the frame before the ball touches the stand. y is the ball centre in pixels (down = positive, 640-px-wide frame).')
+    ws['A2'] = (f't = 0 at frame {r["release_frame"]}, the last frame before the ball starts to fall. Last row: frame '
+                f'{r["bottom_frame"] - 1}, the frame before the ball touches the stand. T is each frame\'s timestamp in the '
+                f'video; y is the ball centre in pixels (down = positive).')
     ws['A2'].font = f_note
-    heads = ['Frame', 'T (s)', 'TADJ (s)', 'y (px)', 'H (m)', 'HS (m)', 'Vav (m/s)']
     hr = 4
-    for j, h in enumerate(heads, start=1):
-        c = ws.cell(hr, j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+    header(ws, hr, 1, ['Frame', 'T (s)', 'TADJ (s)', 'y (px)', 'H (m)', 'HS (m)', 'Vav (m/s)'])
     first = hr + 1
-    last = first + len(pts) - 1
-    for k, p in enumerate(pts):
-        r = first + k
-        ws.cell(r, 1, p['frame']).font = f_input
-        ws.cell(r, 2, f'=A{r}/{names["fps"]}').number_format = '0.0000'
-        ws.cell(r, 3, f'=(B{r}-$B${first})/{names["factor"]}').number_format = '0.0000'
-        c = ws.cell(r, 4, round(p['y'] * s, 2)); c.font = f_input; c.number_format = '0.00'
-        # Height of the ball's bottom above the stand: h at rest, minus the distance fallen.
-        ws.cell(r, 5, f'={names["H"]}-(D{r}-Setup!$B${first_cal + runs.index(v)})/{names["scale"]}').number_format = '0.0000'
-        if first < r < last:
-            ws.cell(r, 6, f'=(E{r - 1}+E{r}+E{r + 1})/3').number_format = '0.0000'
-        if first < r < last - 1:
-            ws.cell(r, 7, f'=(F{r + 1}-F{r})/(C{r + 1}-C{r})').number_format = '0.000'
+    last = first + len(rows) - 1
+    for j, p in enumerate(rows):
+        rr = first + j
+        ws.cell(rr, 1, p['frame']).font = f_input
+        c = ws.cell(rr, 2, round(p['t'], 6)); c.font = f_input; c.number_format = '0.0000'
+        ws.cell(rr, 3, f'=(B{rr}-$B${first})*{names["factor"]}').number_format = '0.0000'
+        c = ws.cell(rr, 4, round(p['y'], 1)); c.font = f_input; c.number_format = '0.0'
+        # Height of the bottom of the ball above the stand: h at rest, minus the distance fallen.
+        ws.cell(rr, 5, f'={names["H"]}-(D{rr}-Setup!$C${cal_row[r["name"]]})/{names["scale"]}').number_format = '0.0000'
+        if first < rr < last:
+            ws.cell(rr, 6, f'=(E{rr - 1}+E{rr}+E{rr + 1})/3').number_format = '0.0000'
+        if first < rr < last - 1:
+            ws.cell(rr, 7, f'=(F{rr + 1}-F{rr})/(C{rr + 1}-C{rr})').number_format = '0.000'
         for col in range(1, 8):
-            ws.cell(r, col).border = box
-            if col not in (1, 4): ws.cell(r, col).font = f_body
+            ws.cell(rr, col).border = box
+            if col in (3, 5, 6, 7): ws.cell(rr, col).font = f_body
     v_first, v_last = first + 1, last - 2
-    # Results block
+    half = (v_last - v_first) // 2
     rb = 4
     ws.cell(rb, 9, 'Result for this run').font = f_bold
     res = [
@@ -174,37 +174,38 @@ for v in runs:
         ('g = −slope (m/s²)', f'=-J{rb + 1}', '0.000'),
         ('R² of the trendline', f'=RSQ(G{v_first}:G{v_last},C{v_first}:C{v_last})', '0.0000'),
         ('Number of velocity points', f'=COUNT(G{v_first}:G{v_last})', '0'),
-        ('g from the first half of the fall (m/s²)', f'=-SLOPE(G{v_first}:G{v_first + (v_last - v_first) // 2},C{v_first}:C{v_first + (v_last - v_first) // 2})', '0.000'),
-        ('g from the second half of the fall (m/s²)', f'=-SLOPE(G{v_last - (v_last - v_first) // 2}:G{v_last},C{v_last - (v_last - v_first) // 2}:C{v_last})', '0.000'),
+        ('g from the first half of the fall (m/s²)', f'=-SLOPE(G{v_first}:G{v_first + half},C{v_first}:C{v_first + half})', '0.000'),
+        ('g from the second half of the fall (m/s²)', f'=-SLOPE(G{v_last - half}:G{v_last},C{v_last - half}:C{v_last})', '0.000'),
+        ('Fall time, release to the last frame before touchdown (s)', f'=C{last}', '0.0000'),
     ]
     for i, (label, formula, fmt) in enumerate(res, start=1):
         ws.cell(rb + i, 9, label).font = f_body
         c = ws.cell(rb + i, 10, formula); c.number_format = fmt; c.border = box
         c.font = f_bold if i == 2 else f_body
         if i == 2: c.fill = fill_result
-    ws.cell(rb + 8, 9, 'Vav uses the manual\'s formula (HS(i+1) − HS(i))/Δt, which is the speed halfway between two '
-                       'frames. Plotting it at TADJ(i) shifts the line sideways by Δt/2 but does not change its slope.').font = f_note
-    ws.cell(rb + 9, 9, 'The two halves are a check for air resistance: drag grows with speed, so the second half '
-                       'should show a smaller acceleration.').font = f_note
+    ws.cell(rb + 9, 9, 'Vav uses the manual\'s formula (HS(i+1) − HS(i))/Δt, the speed halfway between two frames. Plotting it '
+                       'at TADJ(i) shifts the line sideways by Δt/2 but does not change its slope.').font = f_note
+    ws.cell(rb + 10, 9, 'The two halves check for air resistance: drag grows with speed, so the second half should show a '
+                        'smaller acceleration.').font = f_note
     ch = ScatterChart()
-    ch.title = f'Average velocity vs adjusted time — run {v}'
+    ch.title = f'Average velocity vs adjusted time — run {n}'
+    ch.style = 13
     style_axes(ch)
     ch.legend = None
-    xs = Reference(ws, min_col=3, min_row=v_first, max_row=v_last)
-    ys = Reference(ws, min_col=7, min_row=v_first, max_row=v_last)
-    se = Series(ys, xs, title=f'Run {v}')
+    se = Series(Reference(ws, min_col=7, min_row=v_first, max_row=v_last),
+                Reference(ws, min_col=3, min_row=v_first, max_row=v_last), title=f'Run {n}')
     style_points(se, RUN_COLOURS[0])
     se.trendline = Trendline(trendlineType='linear', dispEq=True, dispRSqr=True,
                              trendlineLbl=TrendlineLabel(numFmt=NumFmt(formatCode='0.000', sourceLinked=False)))
     ch.series.append(se)
     ch.height, ch.width = 8.5, 15
-    ws.add_chart(ch, 'I15')
-    for col, w in zip('ABCDEFG', (8, 9, 10, 9, 10, 10, 11)):
+    ws.add_chart(ch, 'I16')
+    for col, w in zip('ABCDEFG', (8, 10, 10, 9, 10, 10, 11)):
         ws.column_dimensions[col].width = w
-    ws.column_dimensions['I'].width = 40
+    ws.column_dimensions['I'].width = 50
     ws.column_dimensions['J'].width = 11
     ws.freeze_panes = 'A5'
-    summary_rows.append((v, ws.title, fit['release'], fit['bottom']))
+    results.append((n, ws.title, r['name'], len(rows), v_first, v_last))
 
 # ---------------------------------------------------------------- Summary
 sm = wb.create_sheet('Summary', 1)
@@ -212,20 +213,18 @@ sm['A1'] = 'Experiment 2: acceleration due to gravity — results'
 sm['A1'].font = f_title
 sm['A2'] = 'Task 6: g for each run (from the slope of its Vav vs TADJ trendline), then the mean and standard deviation.'
 sm['A2'].font = f_note
-heads = ['Run', 'Release frame', 'g (m/s²)', 'R²', 'Velocity points', 'g, first half (m/s²)', 'g, second half (m/s²)']
 hr = 4
-for j, h in enumerate(heads, start=1):
-    c = sm.cell(hr, j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
+header(sm, hr, 1, ['Run', 'Video', 'g (m/s²)', 'R²', 'Velocity points', 'g, first half (m/s²)', 'g, second half (m/s²)', 'Fall time (s)'])
 first = hr + 1
-for k, (v, title, rel, bot) in enumerate(summary_rows):
-    r = first + k
-    sm.cell(r, 1, v).font = f_body
-    sm.cell(r, 2, rel).font = f_input
-    for col, ref, fmt in ((3, 'J6', '0.000'), (4, 'J7', '0.0000'), (5, 'J8', '0'), (6, 'J9', '0.000'), (7, 'J10', '0.000')):
-        c = sm.cell(r, col, f"='{title}'!{ref}"); c.font = f_link; c.number_format = fmt
-    for col in range(1, 8):
-        sm.cell(r, col).border = box
-last = first + len(summary_rows) - 1
+for k, (n, title, name, _, _, _) in enumerate(results):
+    rr = first + k
+    sm.cell(rr, 1, n).font = f_body
+    sm.cell(rr, 2, name).font = f_body
+    for col, ref, fmt in ((3, 'J6', '0.000'), (4, 'J7', '0.0000'), (5, 'J8', '0'), (6, 'J9', '0.000'), (7, 'J10', '0.000'), (8, 'J11', '0.000')):
+        c = sm.cell(rr, col, f"='{title}'!{ref}"); c.font = f_link; c.number_format = fmt
+    for col in range(1, 9):
+        sm.cell(rr, col).border = box
+last = first + len(results) - 1
 r = last + 2
 stats = [
     ('Number of runs, n', f'=COUNT(C{first}:C{last})', '0'),
@@ -247,58 +246,55 @@ for i, (label, formula, fmt) in enumerate(stats):
 note_r = r + len(stats) + 1
 for i, line in enumerate([
     'Result: g = mean ± σ (spread between runs). The uncertainty of the mean, σ/√n, is how well the mean itself is known.',
-    'Every run gives g below 9.81, and on average the second half of the fall gives less than the first half (compare the '
-    'two means above): air resistance on this light ball with holes grows with speed and reduces its acceleration.',
-    'Videos were analysed at 30 fps (1/30 s between frames), so each run has about 11 positions and 8–9 velocity points.',
+    'Every run gives g below 9.81, and the second half of the fall gives less than the first half (compare the two means '
+    'above): air resistance on this light ball with holes grows with speed and reduces its acceleration.',
+    'Videos: 120 frames per second, so each run has about 48 positions and 45 velocity points.',
 ], start=0):
     sm.cell(note_r + i, 1, line).font = f_note
-
 ch = ScatterChart()
 ch.title = 'Average velocity vs adjusted time — all runs'
+ch.style = 13
 style_axes(ch)
-for v, title, rel, bot in summary_rows:
+for n, title, name, nrows, v_first, v_last in results:
     ws = wb[title]
-    vf, vl = 6, 4 + (bot - 1 - rel + 1) - 2
-    se = Series(Reference(ws, min_col=7, min_row=vf, max_row=vl), Reference(ws, min_col=3, min_row=vf, max_row=vl), title=title)
-    style_points(se, RUN_COLOURS[(v - 1) % len(RUN_COLOURS)], 5)
+    se = Series(Reference(ws, min_col=7, min_row=v_first, max_row=v_last), Reference(ws, min_col=3, min_row=v_first, max_row=v_last), title=title)
+    style_points(se, RUN_COLOURS[(n - 1) % len(RUN_COLOURS)], 4)
     ch.series.append(se)
-ch.height, ch.width = 9, 16
-sm.add_chart(ch, 'I4')
-for col, w in zip('ABCDEFG', (30, 14, 12, 10, 12, 16, 17)):
+ch.height, ch.width = 10, 17
+sm.add_chart(ch, 'J4')
+for col, w in zip('ABCDEFGH', (28, 12, 11, 10, 12, 16, 17, 12)):
     sm.column_dimensions[col].width = w
 
 # ---------------------------------------------------------------- Data tables (printable, one block per run)
 dt = wb.create_sheet('Data tables', 2)
 dt['A1'] = 'Recorded data for each run'
 dt['A1'].font = f_title
-dt['A2'] = ('Time from the frame where the ball starts to move (30 fps). Height = bottom of the ball above the stand. '
+dt['A2'] = ('Time from the last frame before the ball starts to fall (120 fps). Height = bottom of the ball above the stand. '
             'Smoothed height = average of each height and its two neighbours. Average velocity = (HS(i+1) − HS(i))/Δt. '
             'Values are linked to the run sheets.')
 dt['A2'].font = f_note
-heads = ['', 'Time (s)', 'Height (m)', 'Smoothed height (m)', 'Average velocity (m/s)']
-longest = max(bot - rel for _, _, rel, bot in summary_rows)
-for idx, (v, title, rel, bot) in enumerate(summary_rows):
+titles = ['', 'Time (s)', 'Height (m)', 'Smoothed height (m)', 'Average velocity (m/s)']
+longest = max(nrows for _, _, _, nrows, _, _ in results)
+for idx, (n, title, name, nrows, _, _) in enumerate(results):
     c0 = 1 if idx % 2 == 0 else 7
     r0 = 4 + (idx // 2) * (longest + 4)
-    dt.cell(r0, c0, f'Run {v}').font = f_bold
-    for j, h in enumerate(heads):
-        c = dt.cell(r0 + 1, c0 + j, h); c.font = f_head; c.fill = fill_head; c.alignment = center; c.border = box
-    for k in range(bot - rel):
-        src = 5 + k                         # first data row on the run sheet
-        r = r0 + 2 + k
-        dt.cell(r, c0, f't{k + 1}').font = f_body
+    dt.cell(r0, c0, f'Run {n} ({name})').font = f_bold
+    header(dt, r0 + 1, c0, titles)
+    for k in range(nrows):
+        src = 5 + k
+        rr = r0 + 2 + k
+        dt.cell(rr, c0, f't{k + 1}').font = f_body
         for j, col in enumerate('CEFG', start=1):
             ref = f"'{title}'!{col}{src}"
             formula = f'={ref}' if col in 'CE' else f'=IF({ref}="","",{ref})'
-            c = dt.cell(r, c0 + j, formula); c.font = f_link; c.number_format = '0.000'
+            c = dt.cell(rr, c0 + j, formula); c.font = f_link; c.number_format = '0.000' if col != 'C' else '0.0000'
         for j in range(5):
-            dt.cell(r, c0 + j).border = box
+            dt.cell(rr, c0 + j).border = box
 for col, w in zip('ABCDEFGHIJK', (5, 10, 11, 13, 14, 3, 5, 10, 11, 13, 14)):
     dt.column_dimensions[col].width = w
-dt.page_setup.orientation = 'portrait'
-dt.page_setup.fitToWidth = 1
 dt.sheet_properties.pageSetUpPr.fitToPage = True
+dt.page_setup.fitToWidth = 1
 dt.page_setup.fitToHeight = 0
 
 wb.save(OUT)
-print('saved', OUT)
+print('saved', OUT, 'with', len(runs), 'runs')
